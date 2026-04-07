@@ -16,7 +16,7 @@ const emit = defineEmits<{
 }>();
 
 const { viewMode, setEditorViewMode, toggleSourceCode, toggleCompareView } = useSourceCode();
-const mode = ref<"chars" | "lines">("chars");
+const mode = ref<"lines" | "chars" | "words" | "all">("chars");
 const viewButtonRef = ref<HTMLElement | null>(null);
 const viewMenuRef = ref<HTMLElement | null>(null);
 const viewMenu = ref({
@@ -36,9 +36,21 @@ const viewOptions: Array<{
 ];
 
 const displayText = computed(() => {
-  const text = props.content ?? "";
-  if (mode.value === "lines") return `${countMarkdownLines(text)} 行`;
-  return `${countMarkdownChars(text)} 字符`;
+  const text = getMetricSourceText(props.content ?? "");
+  const lines = countMarkdownLines(text);
+  const chars = countMarkdownChars(text);
+  const words = countWords(text);
+
+  switch (mode.value) {
+    case "lines":
+      return `${lines} 行`;
+    case "words":
+      return `${words} 字`;
+    case "all":
+      return `${lines} 行 · ${chars} 字符 · ${words} 字`;
+    default:
+      return `${chars} 字符`;
+  }
 });
 
 const viewButtonIcon = computed(() => {
@@ -64,7 +76,19 @@ function cycleEditorViewMode() {
 }
 
 function cycleMode() {
-  mode.value = mode.value === "chars" ? "lines" : "chars";
+  if (mode.value === "chars") {
+    mode.value = "lines";
+    return;
+  }
+  if (mode.value === "lines") {
+    mode.value = "words";
+    return;
+  }
+  if (mode.value === "words") {
+    mode.value = "all";
+    return;
+  }
+  mode.value = "chars";
 }
 
 async function openViewMenu(event: MouseEvent) {
@@ -97,9 +121,22 @@ function countMarkdownLines(text: string, options = { skipEmpty: true }): number
 }
 
 function countMarkdownChars(text: string): number {
+  return (text.trim() || "").length;
+}
+
+function countWords(text: string): number {
+  const cjkChars = (text.match(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/g) || []).length;
+  const latinWords = text
+    .replace(/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/g, "")
+    .trim()
+    .split(/\s+/)
+    .filter((word) => word.length > 0).length;
+  return cjkChars + latinWords;
+}
+
+function getMetricSourceText(text: string) {
   const base64Regex = /data:image\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+/g;
-  return (text.replaceAll("&#x20;", "").replace(base64Regex, "image").trim() || "").split("")
-    .length;
+  return text.replaceAll("&#x20;", "").replace(base64Regex, "image");
 }
 
 function handleDocumentPointerDown(event: PointerEvent) {
