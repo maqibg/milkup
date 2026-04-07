@@ -57,6 +57,7 @@ async function initFromTearOff(): Promise<boolean> {
       scrollRatio: tabData.scrollRatio ?? 0,
       readOnly: tabData.readOnly,
       isNewlyLoaded: !tabData.isModified,
+      viewMode: tabData.viewMode ?? "visual",
       fileTraits: tabData.fileTraits,
     };
 
@@ -94,6 +95,7 @@ const defaultTab: Tab = {
   scrollRatio: 0,
   readOnly: false,
   isNewlyLoaded: true,
+  viewMode: "visual",
 };
 tabs.value.push(defaultTab);
 activeTabId.value = defaultTab.id;
@@ -330,6 +332,7 @@ async function createTabFromFile(
     ...tabData,
     readOnly,
     isNewlyLoaded: true,
+    viewMode: "visual",
   };
   scheduleNewlyLoadedCleanup(tab.id);
 
@@ -411,6 +414,7 @@ function createNewTab(): Tab {
     scrollRatio: 0,
     readOnly: false,
     isNewlyLoaded: true,
+    viewMode: "visual",
   };
   scheduleNewlyLoadedCleanup(tab.id);
 
@@ -580,6 +584,7 @@ function getTabDataForTearOff(tabId: string): TearOffTabData | null {
     originalContent: raw.originalContent,
     isModified: raw.isModified,
     scrollRatio: raw.scrollRatio ?? 0,
+    viewMode: raw.viewMode ?? "visual",
     readOnly: raw.readOnly,
     fileTraits: raw.fileTraits ? toRaw(raw.fileTraits) : undefined,
   };
@@ -690,6 +695,7 @@ function handleTabMergeIn(tabData: TearOffTabData) {
     scrollRatio: tabData.scrollRatio ?? 0,
     readOnly: tabData.readOnly,
     isNewlyLoaded: !tabData.isModified,
+    viewMode: tabData.viewMode ?? "visual",
     fileTraits: tabData.fileTraits,
   };
 
@@ -769,6 +775,7 @@ function handleTabMergePreview(tabData: TearOffTabData, screenX?: number, screen
     readOnly: tabData.readOnly,
     isNewlyLoaded: !tabData.isModified,
     isMergePreview: true,
+    viewMode: tabData.viewMode ?? "visual",
     fileTraits: tabData.fileTraits,
   };
 

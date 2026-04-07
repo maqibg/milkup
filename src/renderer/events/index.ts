@@ -1,4 +1,5 @@
 import mitt from "mitt";
+import type { EditorViewMode } from "@/types/tab";
 
 type Events = {
   "file:Change": void; // Triggered when a file is changed
@@ -26,6 +27,10 @@ type Events = {
   }; // Triggered when file overwrite confirmation is needed
   "file:changed-confirm": { fileName: string; resolver: (choice: "cancel" | "overwrite") => void }; // Triggered when file changed confirmation is needed
   "update:available": { version: string; url: string; notes: string }; // Triggered when an update is available
+  "editorView:toggleSource": void; // Triggered when source mode should toggle
+  "editorView:toggleCompare": void; // Triggered when compare mode should toggle
+  "editorView:set": EditorViewMode; // Triggered when editor mode should be set explicitly
+  "editorView:changed": EditorViewMode; // Triggered when active editor mode changes
   "sourceView:toggle": void; // Triggered when source view mode is toggled
   "sourceView:changed": boolean; // Triggered when source view mode state changes
   "editor:reload": void; // Triggered when active editor should reload its internal ProseMirror instance

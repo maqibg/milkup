@@ -69,10 +69,19 @@ export default function createMenu() {
         { label: "实际大小", accelerator: "CmdOrCtrl+0", role: "resetZoom" },
         { label: "全屏", accelerator: "F11", role: "togglefullscreen" },
         {
-          label: "切换视图",
+          label: "源码视图",
           accelerator: "CmdOrCtrl+/",
+          registerAccelerator: false,
           click: () => {
             getFocusedWindow()?.webContents.send("view:toggleView");
+          },
+        },
+        {
+          label: "对比视图",
+          accelerator: "Shift+CmdOrCtrl+/",
+          registerAccelerator: false,
+          click: () => {
+            getFocusedWindow()?.webContents.send("view:toggleCompareView");
           },
         },
       ],

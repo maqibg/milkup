@@ -106,6 +106,13 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     key: "Mod-/",
     defaultKey: "Mod-/",
   },
+  {
+    id: "toggleCompareView",
+    label: "对比视图",
+    category: "editor",
+    key: "Mod-Shift-/",
+    defaultKey: "Mod-Shift-/",
+  },
   { id: "undo", label: "撤销", category: "editor", key: "Mod-z", defaultKey: "Mod-z" },
   { id: "redo", label: "重做", category: "editor", key: "Mod-y", defaultKey: "Mod-y" },
 ];

@@ -1,3 +1,5 @@
+export type EditorViewMode = "visual" | "source" | "compare";
+
 export interface FileTraitsDTO {
   hasBOM: boolean;
   lineEnding: "crlf" | "lf";
@@ -12,6 +14,7 @@ export interface TearOffTabData {
   originalContent: string;
   isModified: boolean;
   scrollRatio?: number;
+  viewMode?: EditorViewMode;
   readOnly: boolean;
   fileTraits?: FileTraitsDTO;
 }

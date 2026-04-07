@@ -5,6 +5,7 @@
  * 每个 tab 拥有独立的编辑器实例（v-for + v-show 模式）
  */
 import type { Tab } from "@/types/tab";
+import type { EditorViewMode } from "@/types/tab";
 import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import {
   MilkupEditor,
@@ -26,6 +27,7 @@ import { normalizeMarkdownForDirtyCheck } from "@/renderer/utils/markdown";
 interface Props {
   tab: Tab;
   isActive: boolean;
+  viewMode?: EditorViewMode;
 }
 
 const props = defineProps<Props>();
@@ -47,6 +49,20 @@ let isSourceViewToggling = false;
 
 // isNewlyLoaded 归一化清理定时器
 let newlyLoadedTimer: ReturnType<typeof setTimeout> | null = null;
+
+function getTargetSourceState(viewMode?: EditorViewMode) {
+  return viewMode === "source";
+}
+
+function syncSourceViewFromMode(viewMode?: EditorViewMode) {
+  if (!editor) return;
+  const shouldShowSource = getTargetSourceState(viewMode);
+  if (editor.isSourceViewEnabled() === shouldShowSource) return;
+  isSourceViewToggling = true;
+  editor.updateConfig({ sourceView: shouldShowSource });
+  isSourceViewToggling = false;
+}
+
 function scheduleNewlyLoadedCleanup() {
   if (newlyLoadedTimer) clearTimeout(newlyLoadedTimer);
   newlyLoadedTimer = setTimeout(() => {
@@ -144,7 +160,7 @@ function createEditorInstance() {
   const config: MilkupConfig = {
     content: contentForRendering,
     readonly: props.tab.readOnly,
-    sourceView: false,
+    sourceView: getTargetSourceState(props.viewMode),
     placeholder: "写点什么吧...",
     pasteConfig: {
       getImagePasteMethod,
@@ -265,22 +281,11 @@ onUnmounted(() => {
   editor = null;
   if (newlyLoadedTimer) clearTimeout(newlyLoadedTimer);
   if (outlineTimer) clearTimeout(outlineTimer);
-  emitter.off("sourceView:toggle", handleSourceViewToggle);
   emitter.off("outline:scrollTo", handleOutlineScrollTo);
   emitter.off("editor:reload", handleEditorReload);
   window.electronAPI.removeListener?.("editor:undo", handleMenuUndo);
   window.electronAPI.removeListener?.("editor:redo", handleMenuRedo);
 });
-
-// 处理源码模式切换事件（仅活跃编辑器响应）
-function handleSourceViewToggle() {
-  if (!props.isActive || !editor) return;
-  isSourceViewToggling = true;
-  editor.toggleSourceView();
-  isSourceViewToggling = false;
-  emitter.emit("sourceView:changed", editor.isSourceViewEnabled());
-}
-emitter.on("sourceView:toggle", handleSourceViewToggle);
 
 // 处理大纲点击滚动（仅活跃编辑器响应）
 function handleOutlineScrollTo(pos: unknown) {
@@ -356,6 +361,13 @@ watch(
   }
 );
 
+watch(
+  () => props.viewMode,
+  (viewMode) => {
+    syncSourceViewFromMode(viewMode);
+  }
+);
+
 // 监听 isActive 变化：激活时同步全局状态
 watch(
   () => props.isActive,
@@ -363,10 +375,9 @@ watch(
     if (isActive) {
       // 更新全局文件路径
       (window as any).__currentFilePath = props.tab.filePath || null;
+      syncSourceViewFromMode(props.viewMode);
       // 发送大纲更新
       emitOutlineUpdate();
-      // 通知源码模式状态
-      emitter.emit("sourceView:changed", editor?.isSourceViewEnabled() ?? false);
     }
   }
 );
@@ -378,6 +389,14 @@ defineExpose({
   getMarkdown: () => editor?.getMarkdown() ?? "",
   setMarkdown: (content: string) => editor?.setMarkdown(content),
   toggleSourceView: () => editor?.toggleSourceView(),
+  isSourceViewEnabled: () => editor?.isSourceViewEnabled() ?? false,
+  setSourceView: (enabled: boolean) => {
+    if (!editor) return;
+    isSourceViewToggling = true;
+    editor.updateConfig({ sourceView: enabled });
+    isSourceViewToggling = false;
+  },
+  getScrollElement: () => scrollViewRef.value,
 });
 </script>
 

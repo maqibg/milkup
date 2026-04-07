@@ -2,9 +2,8 @@
 import { basicSetup } from "codemirror";
 import { EditorView } from "@codemirror/view";
 import { markdown } from "@codemirror/lang-markdown";
-import { EditorState, Prec } from "@codemirror/state";
+import { EditorState } from "@codemirror/state";
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import useSourceCode from "@/renderer/hooks/useSourceCode";
 import useTab from "@/renderer/hooks/useTab";
 
 interface MdSpan {
@@ -23,20 +22,7 @@ const props = defineProps<{
   readOnly: boolean | undefined;
 }>();
 const emit = defineEmits(["update:modelValue"]);
-const { toggleSourceCode } = useSourceCode();
 const { currentTab } = useTab();
-// 禁用注释快捷键 Ctrl-/Cmd-/
-const blockCtrlSlashDOM = Prec.highest(
-  EditorView.domEventHandlers({
-    keydown: (e, _view) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
-        toggleSourceCode();
-        return true;
-      }
-      return false;
-    },
-  })
-);
 
 const editorContainer = ref<HTMLElement>();
 let editorView: EditorView | null = null;
@@ -45,7 +31,6 @@ onMounted(() => {
   const startState = EditorState.create({
     doc: props.modelValue,
     extensions: [
-      blockCtrlSlashDOM,
       basicSetup,
       markdown(),
       EditorView.updateListener.of((update) => {
@@ -102,6 +87,7 @@ watch(
 onBeforeUnmount(() => {
   editorView?.destroy();
 });
+
 function toMilkdownApproxText(md: string): string {
   return (
     md
@@ -182,6 +168,11 @@ function calcMilkOffset(md: string, cmOffset: number): number {
   milkOffset += toMilkdownApproxText(md.slice(pos, cmOffset)).length;
   return milkOffset;
 }
+
+defineExpose({
+  focus: () => editorView?.focus(),
+  getScrollElement: () => editorView?.scrollDOM ?? null,
+});
 </script>
 
 <template>
@@ -190,12 +181,33 @@ function calcMilkOffset(md: string, cmOffset: number): number {
 
 <style scoped>
 .editor-container {
-  border: 1px solid #ccc;
+  border: 1px solid var(--border-color-1);
   border-radius: 6px;
   font-size: 14px;
   line-height: 1.5;
   height: 100%;
   width: 100%;
   overflow: auto;
+  background: var(--background-color-1);
+}
+
+.editor-container :deep(.cm-editor) {
+  height: 100%;
+  background: transparent;
+  color: var(--text-color-1);
+}
+
+.editor-container :deep(.cm-scroller) {
+  font-family: var(--font-family);
+}
+
+.editor-container :deep(.cm-gutters) {
+  background: var(--background-color-2);
+  border-right: 1px solid var(--border-color-1);
+}
+
+.editor-container :deep(.cm-activeLine),
+.editor-container :deep(.cm-activeLineGutter) {
+  background: var(--hover-background-color);
 }
 </style>
