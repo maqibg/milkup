@@ -130,7 +130,7 @@ export function keyEventToProseMirrorKey(event: KeyboardEvent): string | null {
   if (event.shiftKey) parts.push("Shift");
   if (event.altKey) parts.push("Alt");
 
-  let key = event.key;
+  let key = normalizeShortcutKey(event);
 
   // 忽略单独的修饰键
   if (["Control", "Meta", "Shift", "Alt"].includes(key)) {
@@ -153,4 +153,16 @@ export function keyEventToProseMirrorKey(event: KeyboardEvent): string | null {
   }
 
   return parts.join("-");
+}
+
+function normalizeShortcutKey(event: KeyboardEvent): string {
+  if (event.code === "Slash") return "/";
+  if (event.code === "Minus") return "minus";
+  if (event.code === "Backquote") return "`";
+  return event.key;
+}
+
+export function doesEventMatchShortcut(event: KeyboardEvent, shortcut: string | null | undefined) {
+  if (!shortcut) return false;
+  return keyEventToProseMirrorKey(event) === shortcut;
 }

@@ -25,6 +25,7 @@ export type ShortcutActionId =
   | "insertTable"
   | "insertMathBlock"
   | "toggleSourceView"
+  | "toggleCompareView"
   | "undo"
   | "redo";
 

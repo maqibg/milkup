@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
+import { DEFAULT_SHORTCUTS } from "@/core";
 import emitter from "@/renderer/events";
+import { doesEventMatchShortcut } from "@/renderer/hooks/useShortcutConfig";
 import { useContext } from "@/renderer/hooks/useContext";
 import { useConfig } from "@/renderer/hooks/useConfig";
 import useFont from "@/renderer/hooks/useFont";
@@ -15,6 +18,7 @@ import useWorkSpace from "@/renderer/hooks/useWorkSpace";
 import { shouldAutoLoadWorkspace } from "@/renderer/utils/workspacePath";
 import SaveConfirmDialog from "./components/dialogs/SaveConfirmDialog.vue";
 import UpdateConfirmDialog from "./components/dialogs/UpdateConfirmDialog.vue";
+import CompareEditor from "./components/editor/CompareEditor.vue";
 import MilkupEditor from "./components/editor/MilkupEditor.vue";
 import StatusBar from "./components/menu/StatusBar.vue";
 import TitleBar from "./components/menu/TitleBar.vue";
@@ -29,7 +33,7 @@ const { init: initFont } = useFont();
 const { init: initOtherConfig } = useOtherConfig();
 const { config } = useConfig();
 const { openWorkSpaceByPath } = useWorkSpace();
-const { isShowSource } = useSourceCode(); // 用于控制大纲显示
+const { toggleSourceCode, toggleCompareView } = useSourceCode();
 const { init: initSpellCheck } = useSpellCheck();
 const {
   currentTab,
@@ -104,8 +108,6 @@ const onUpdateAvailable = (payload: any) => {
 // 监听主进程的更新可用事件 (Auto Update)
 window.electronAPI.on("update:available", onUpdateAvailable);
 
-// 监听手动检查的更新可用事件 (Manual Check from About)
-import { onMounted, onUnmounted, ref, watch, nextTick, computed } from "vue";
 // 大纲侧边栏两阶段动画状态机
 // closed: 隐藏 | opening: transform 滑入动画 | open: flex 正常布局 | closing-prep: 切回 transform 定位 | closing: transform 滑出动画
 type OutlineState = "closed" | "opening" | "open" | "closing-prep" | "closing";
@@ -121,7 +123,7 @@ watch(isShowOutline, async (val) => {
     // 先瞬间切回 transform 定位（视觉位置不变，无动画）
     outlineState.value = "closing-prep";
     await nextTick();
-    editorAreaRef.value?.offsetHeight; // 强制浏览器应用样式
+    void editorAreaRef.value?.offsetHeight; // 强制浏览器应用样式
     outlineState.value = "closing";
   }
 });
@@ -132,6 +134,34 @@ function onOutlineTransitionEnd(e: TransitionEvent) {
     outlineState.value = "open"; // 切换到 flex 布局，内容正常排版
   } else if (outlineState.value === "closing") {
     outlineState.value = "closed";
+  }
+}
+
+function getShortcutKey(actionId: "toggleSourceView" | "toggleCompareView") {
+  const def = DEFAULT_SHORTCUTS.find((item) => item.id === actionId);
+  if (!def) return null;
+  return config.value.shortcuts?.[actionId] || def.defaultKey;
+}
+
+function handleGlobalViewShortcut(event: KeyboardEvent) {
+  if (event.isComposing || !currentTab.value) return;
+
+  const target = event.target as HTMLElement | null;
+  if (target?.closest(".shortcut-page")) return;
+
+  const sourceShortcut = getShortcutKey("toggleSourceView");
+  if (doesEventMatchShortcut(event, sourceShortcut)) {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleSourceCode();
+    return;
+  }
+
+  const compareShortcut = getShortcutKey("toggleCompareView");
+  if (doesEventMatchShortcut(event, compareShortcut)) {
+    event.preventDefault();
+    event.stopPropagation();
+    toggleCompareView();
   }
 }
 
@@ -150,10 +180,12 @@ onMounted(() => {
     });
   }
   emitter.on("update:available", onUpdateAvailable);
+  window.addEventListener("keydown", handleGlobalViewShortcut, true);
 });
 onUnmounted(() => {
   emitter.off("update:available", onUpdateAvailable);
   emitter.off("tab:close-confirm", handleTabCloseConfirm);
+  window.removeEventListener("keydown", handleGlobalViewShortcut, true);
 });
 
 // Reuse safe close logic
@@ -208,20 +240,29 @@ const handleInstall = async () => {
 <template>
   <TitleBar />
   <div id="fontRoot">
-    <!-- ✅ 多编辑器实例：每个 tab 拥有独立的编辑器，v-show 保持 DOM 存活 -->
+    <!-- compare 模式使用分栏布局，其余模式保持每个 tab 独立编辑器实例 -->
     <div ref="editorAreaRef" class="editorArea" :class="outlineClass">
       <div class="outlineBox">
         <Outline />
       </div>
       <div class="editorBox" @transitionend="onOutlineTransitionEnd">
-        <!-- Milkup 编辑器（每个 tab 独立实例） -->
-        <MilkupEditor
-          v-for="tab in tabs"
-          :key="tab.id"
-          v-show="tab.id === activeTabId"
-          :tab="tab"
-          :is-active="tab.id === activeTabId"
+        <CompareEditor
+          v-if="currentTab?.viewMode === 'compare' && currentTab"
+          :key="currentTab.id"
+          :tab="currentTab"
+          :is-active="true"
         />
+        <template v-else>
+          <!-- Milkup 编辑器（每个 tab 独立实例） -->
+          <MilkupEditor
+            v-for="tab in tabs"
+            :key="tab.id"
+            v-show="tab.id === activeTabId"
+            :tab="tab"
+            :is-active="tab.id === activeTabId"
+            :view-mode="tab.viewMode"
+          />
+        </template>
       </div>
     </div>
   </div>

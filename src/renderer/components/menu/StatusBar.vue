@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import type { EditorViewMode } from "@/types/tab";
+import { computed, nextTick, onMounted, onUnmounted, ref } from "vue";
 import AppIcon from "@/renderer/components/ui/AppIcon.vue";
 import { toggleShowOutline } from "@/renderer/hooks/useOutline";
 import useSourceCode from "@/renderer/hooks/useSourceCode";
@@ -14,29 +15,78 @@ const emit = defineEmits<{
   (e: "restore-update"): void;
 }>();
 
-const { isShowSource, toggleSourceCode } = useSourceCode();
+const { viewMode, setEditorViewMode, toggleSourceCode, toggleCompareView } = useSourceCode();
 const mode = ref<"chars" | "lines">("chars");
+const viewButtonRef = ref<HTMLElement | null>(null);
+const viewMenuRef = ref<HTMLElement | null>(null);
+const viewMenu = ref({
+  visible: false,
+  x: 0,
+  y: 0,
+});
+
+const viewOptions: Array<{
+  mode: EditorViewMode;
+  label: string;
+  icon: "markdown" | "input" | "document-copy";
+}> = [
+  { mode: "visual", label: "渲染视图", icon: "markdown" },
+  { mode: "source", label: "源码视图", icon: "input" },
+  { mode: "compare", label: "对比视图", icon: "document-copy" },
+];
 
 const displayText = computed(() => {
   const text = props.content ?? "";
-  switch (mode.value) {
-    case "chars":
-      return `${countMarkdownChars(text)} 字符`;
-    case "lines":
-      return `${countMarkdownLines(text)} 行`;
-    default:
-      return "";
-  }
+  if (mode.value === "lines") return `${countMarkdownLines(text)} 行`;
+  return `${countMarkdownChars(text)} 字符`;
+});
+
+const viewButtonIcon = computed(() => {
+  if (viewMode.value === "compare") return "document-copy";
+  if (viewMode.value === "source") return "input";
+  return "markdown";
 });
 
 function handleRestore() {
   emit("restore-update");
 }
 
-function cycleMode() {
-  if (mode.value === "chars") mode.value = "lines";
-  else if (mode.value === "lines") mode.value = "chars";
+function cycleEditorViewMode() {
+  if (viewMode.value === "visual") {
+    setEditorViewMode("source");
+    return;
+  }
+  if (viewMode.value === "source") {
+    setEditorViewMode("compare");
+    return;
+  }
+  setEditorViewMode("visual");
 }
+
+function cycleMode() {
+  mode.value = mode.value === "chars" ? "lines" : "chars";
+}
+
+async function openViewMenu(event: MouseEvent) {
+  const target = event.currentTarget as HTMLElement | null;
+  viewMenu.value = {
+    visible: true,
+    x: 0,
+    y: 0,
+  };
+  await nextTick();
+  positionViewMenu(target);
+}
+
+function closeViewMenu() {
+  viewMenu.value.visible = false;
+}
+
+function selectViewMode(mode: EditorViewMode) {
+  setEditorViewMode(mode);
+  closeViewMenu();
+}
+
 function countMarkdownLines(text: string, options = { skipEmpty: true }): number {
   if (!text) return 0;
   const rawLines = text.split(/\n{2,}|<br\s*\/?>| {2}\n/g);
@@ -45,29 +95,92 @@ function countMarkdownLines(text: string, options = { skipEmpty: true }): number
   }
   return rawLines.length;
 }
+
 function countMarkdownChars(text: string): number {
   const base64Regex = /data:image\/[a-zA-Z]+;base64,[a-zA-Z0-9+/=]+/g;
   return (text.replaceAll("&#x20;", "").replace(base64Regex, "image").trim() || "").split("")
     .length;
 }
-window.electronAPI.on("view:toggleView", () => {
+
+function handleDocumentPointerDown(event: PointerEvent) {
+  const target = event.target as HTMLElement | null;
+  if (target?.closest(".view-context-menu")) return;
+  closeViewMenu();
+}
+
+function positionViewMenu(target: HTMLElement | null) {
+  const anchor = target ?? viewButtonRef.value;
+  const menu = viewMenuRef.value;
+  if (!anchor || !menu) return;
+
+  const margin = 8;
+  const gap = 6;
+  const anchorRect = anchor.getBoundingClientRect();
+  const menuWidth = menu.offsetWidth || 180;
+  const menuHeight = menu.offsetHeight || 140;
+
+  let x = anchorRect.left;
+  let y = anchorRect.top - menuHeight - gap;
+
+  if (y < margin) {
+    y = anchorRect.bottom + gap;
+  }
+  if (y + menuHeight > window.innerHeight - margin) {
+    y = window.innerHeight - menuHeight - margin;
+  }
+  if (x + menuWidth > window.innerWidth - margin) {
+    x = window.innerWidth - menuWidth - margin;
+  }
+  if (x < margin) {
+    x = margin;
+  }
+
+  viewMenu.value = {
+    visible: true,
+    x,
+    y,
+  };
+}
+
+function handleMenuToggleSource() {
   toggleSourceCode();
+}
+
+function handleMenuToggleCompare() {
+  toggleCompareView();
+}
+
+onMounted(() => {
+  document.addEventListener("pointerdown", handleDocumentPointerDown);
+  window.electronAPI.on("view:toggleView", handleMenuToggleSource);
+  window.electronAPI.on("view:toggleCompareView", handleMenuToggleCompare);
+});
+
+onUnmounted(() => {
+  document.removeEventListener("pointerdown", handleDocumentPointerDown);
+  window.electronAPI.removeListener?.("view:toggleView", handleMenuToggleSource);
+  window.electronAPI.removeListener?.("view:toggleCompareView", handleMenuToggleCompare);
 });
 </script>
 
 <template>
   <div class="StatusBarBox">
     <div class="left-section">
-      <div>
+      <div class="status-actions">
         <span class="status-icon-btn" @click="toggleShowOutline()">
           <AppIcon name="List-outlined" />
         </span>
-        <span class="status-icon-btn" @click.stop="toggleSourceCode()">
-          <AppIcon :name="isShowSource ? 'input' : 'markdown'" />
+        <span
+          ref="viewButtonRef"
+          class="status-icon-btn"
+          :class="{ active: viewMode !== 'visual' }"
+          @click.stop="cycleEditorViewMode"
+          @contextmenu.prevent.stop="openViewMenu"
+        >
+          <AppIcon :name="viewButtonIcon" />
         </span>
       </div>
 
-      <!-- Update Progress (Centered-ish or just after icons) -->
       <div
         v-if="updateStatus === 'downloading' && !isUpdateDialogVisible"
         class="update-progress-bar"
@@ -92,12 +205,35 @@ window.electronAPI.on("view:toggleView", () => {
 
     <span class="statusBarText" @click="cycleMode">{{ displayText }}</span>
   </div>
+
+  <Teleport to="body">
+    <div
+      v-if="viewMenu.visible"
+      ref="viewMenuRef"
+      class="view-context-menu"
+      :style="{ left: `${viewMenu.x}px`, top: `${viewMenu.y}px` }"
+      @click.stop
+    >
+      <div
+        v-for="item in viewOptions"
+        :key="item.mode"
+        class="view-context-item"
+        :class="{ active: viewMode === item.mode }"
+        @click="selectViewMode(item.mode)"
+      >
+        <div class="view-context-main">
+          <AppIcon :name="item.icon" />
+          <span>{{ item.label }}</span>
+        </div>
+        <AppIcon v-if="viewMode === item.mode" name="check-circle" class="view-context-check" />
+      </div>
+    </div>
+  </Teleport>
 </template>
 
 <style lang="less" scoped>
 .StatusBarBox {
   user-select: none;
-  cursor: pointer;
   font-size: 14px;
   color: var(--text-color-1);
   text-align: right;
@@ -111,15 +247,30 @@ window.electronAPI.on("view:toggleView", () => {
     align-items: center;
     gap: 12px;
   }
+}
 
-  span {
-    padding: 2px 8px;
-    display: inline-block;
+.status-actions {
+  display: flex;
+  align-items: center;
+}
 
-    &:hover {
-      background: var(--hover-color);
-    }
+.status-icon-btn,
+.statusBarText {
+  padding: 2px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: var(--hover-color);
   }
+}
+
+.status-icon-btn.active {
+  color: var(--primary-color);
 }
 
 .statusBarText {
@@ -136,6 +287,7 @@ window.electronAPI.on("view:toggleView", () => {
   color: var(--text-color-2);
   padding: 2px 8px;
   border-radius: 4px;
+  cursor: pointer;
   transition: background 0.2s;
 
   &:hover {
@@ -159,5 +311,46 @@ window.electronAPI.on("view:toggleView", () => {
     background: var(--primary-color);
     transition: width 0.3s;
   }
+}
+
+.view-context-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 164px;
+  background: var(--background-color-1);
+  border: 1px solid var(--border-color-1);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16);
+  padding: 6px;
+}
+
+.view-context-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-color-1);
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background: var(--hover-background-color);
+  }
+}
+
+.view-context-item.active {
+  background: color-mix(in srgb, var(--primary-color) 10%, var(--background-color-2));
+}
+
+.view-context-main {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.view-context-check {
+  color: var(--primary-color);
 }
 </style>
