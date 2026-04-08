@@ -1,7 +1,7 @@
 import type { Theme, ThemeName } from "@/types/theme";
 import autotoast from "autotoast.js";
 import { getCurrentInstance, onMounted, onUnmounted, ref, toRaw } from "vue";
-import { cssVarsDesMap, themeNameMap } from "@/config/theme";
+import { cssVarsDesMap, defaultThemeName, themeDisplayOrder, themeNameMap } from "@/config/theme";
 import themeManager from "@/renderer/utils/themeManager";
 import { randomUUID } from "@/renderer/utils/tool";
 import { isThemeObject } from "@/types/theme";
@@ -19,7 +19,7 @@ const {
   getEditingThemeFromStorage,
   clearEditingThemeFromStorage,
 } = themeManager;
-const currentTheme = ref<ThemeName>("normal");
+const currentTheme = ref<ThemeName>(defaultThemeName);
 const tempTheme = ref<Theme>();
 
 const themes = ref<Theme[]>([]);
@@ -120,7 +120,7 @@ function getThemes() {
     if (folderName) {
       // 将文件夹名称转换为主题名称格式（将连字符转换为下划线）
       const themeName = folderName;
-      themeList.unshift({
+      themeList.push({
         name: themeName as ThemeName,
         label: themeNameMap[themeName as keyof typeof themeNameMap]?.label || themeName,
         description: themeNameMap[themeName as keyof typeof themeNameMap]?.description || "",
@@ -144,7 +144,17 @@ function getThemes() {
     themeList.push(...localThemesList);
   }
 
-  return themeList;
+  const presetOrder = new Map(themeDisplayOrder.map((name, index) => [name, index]));
+
+  return themeList.sort((a, b) => {
+    const aIndex = presetOrder.get(a.name as (typeof themeDisplayOrder)[number]);
+    const bIndex = presetOrder.get(b.name as (typeof themeDisplayOrder)[number]);
+
+    if (aIndex !== undefined && bIndex !== undefined) return aIndex - bIndex;
+    if (aIndex !== undefined) return -1;
+    if (bIndex !== undefined) return 1;
+    return a.label.localeCompare(b.label, "zh-CN");
+  });
 }
 
 // 根据类名获取主题
