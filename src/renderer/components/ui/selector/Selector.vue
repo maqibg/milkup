@@ -9,6 +9,7 @@ const props = defineProps<{
   items?: SelectorItem[];
   label?: string;
   required?: boolean;
+  editable?: boolean;
 }>();
 const emit = defineEmits<{
   (e: "update:modelValue", modelValue: string): void;
@@ -40,16 +41,41 @@ function handleCheckItem(item: SelectorItem) {
   isActive.value = false;
 }
 
-function toggleSelector() {
-  if (!isActive.value) {
-    if (containerRef.value) {
-      const rect = containerRef.value.getBoundingClientRect();
-      isUpward.value = window.innerHeight - rect.bottom < 220;
-    }
-    isActive.value = true;
-  } else {
-    isActive.value = false;
+function handleInput(event: Event) {
+  if (!props.editable) return;
+  const value = (event.target as HTMLInputElement).value;
+  emit("update:modelValue", value);
+  emit("change", value);
+  isActive.value = true;
+}
+
+function openSelector() {
+  if (containerRef.value) {
+    const rect = containerRef.value.getBoundingClientRect();
+    isUpward.value = window.innerHeight - rect.bottom < 220;
   }
+  isActive.value = true;
+}
+
+function toggleSelector() {
+  if (props.editable) {
+    if (!isActive.value) {
+      openSelector();
+    }
+    return;
+  }
+
+  if (!isActive.value) {
+    openSelector();
+    return;
+  }
+
+  isActive.value = false;
+}
+
+function handleFocus() {
+  if (!props.editable) return;
+  openSelector();
 }
 
 function handleClickOutside(event: MouseEvent) {
@@ -73,10 +99,12 @@ onUnmounted(() => {
     <div ref="containerRef" class="container">
       <input
         class="selector-container"
-        readonly
-        :value="displayValue"
+        :readonly="!editable"
+        :value="editable ? modelValue : displayValue"
         :placeholder="placeholder"
         @click="toggleSelector"
+        @focus="handleFocus"
+        @input="handleInput"
       />
       <div v-if="isActive" class="selector-items" :class="{ upward: isUpward }">
         <div

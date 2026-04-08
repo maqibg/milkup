@@ -16,6 +16,7 @@ import useTheme from "@/renderer/hooks/useTheme";
 import { useUpdateDialog } from "@/renderer/hooks/useUpdateDialog";
 import useWorkSpace from "@/renderer/hooks/useWorkSpace";
 import { shouldAutoLoadWorkspace } from "@/renderer/utils/workspacePath";
+import AIChatPanel from "./components/ai/AIChatPanel.vue";
 import SaveConfirmDialog from "./components/dialogs/SaveConfirmDialog.vue";
 import UpdateConfirmDialog from "./components/dialogs/UpdateConfirmDialog.vue";
 import CompareEditor from "./components/editor/CompareEditor.vue";
@@ -113,8 +114,13 @@ window.electronAPI.on("update:available", onUpdateAvailable);
 type OutlineState = "closed" | "opening" | "open" | "closing-prep" | "closing";
 const outlineState = ref<OutlineState>(isShowOutline.value ? "open" : "closed");
 const editorAreaRef = ref<HTMLElement | null>(null);
+const aiChatPanelRef = ref<InstanceType<typeof AIChatPanel> | null>(null);
+const isAIChatOpen = ref(false);
 
-const outlineClass = computed(() => `outline-${outlineState.value}`);
+const editorAreaClass = computed(() => [
+  `outline-${outlineState.value}`,
+  { "ai-open": isAIChatOpen.value },
+]);
 
 watch(isShowOutline, async (val) => {
   if (val) {
@@ -135,6 +141,23 @@ function onOutlineTransitionEnd(e: TransitionEvent) {
   } else if (outlineState.value === "closing") {
     outlineState.value = "closed";
   }
+}
+
+function toggleAIChatPanel() {
+  isAIChatOpen.value = !isAIChatOpen.value;
+}
+
+function handleCloseAIChatPanel() {
+  isAIChatOpen.value = false;
+}
+
+async function handleAIAnalysisSelection(event: Event) {
+  const detail = (event as CustomEvent<{ selectedText?: string }>).detail;
+  const selectedText = detail?.selectedText?.trim();
+  if (!selectedText) return;
+  isAIChatOpen.value = true;
+  await nextTick();
+  await aiChatPanelRef.value?.analyzeSelection(selectedText);
 }
 
 function getShortcutKey(actionId: "toggleSourceView" | "toggleCompareView") {
@@ -181,11 +204,13 @@ onMounted(() => {
   }
   emitter.on("update:available", onUpdateAvailable);
   window.addEventListener("keydown", handleGlobalViewShortcut, true);
+  window.addEventListener("milkup:ai-analysis", handleAIAnalysisSelection as EventListener);
 });
 onUnmounted(() => {
   emitter.off("update:available", onUpdateAvailable);
   emitter.off("tab:close-confirm", handleTabCloseConfirm);
   window.removeEventListener("keydown", handleGlobalViewShortcut, true);
+  window.removeEventListener("milkup:ai-analysis", handleAIAnalysisSelection as EventListener);
 });
 
 // Reuse safe close logic
@@ -241,7 +266,7 @@ const handleInstall = async () => {
   <TitleBar />
   <div id="fontRoot">
     <!-- compare 模式使用分栏布局，其余模式保持每个 tab 独立编辑器实例 -->
-    <div ref="editorAreaRef" class="editorArea" :class="outlineClass">
+    <div ref="editorAreaRef" class="editorArea" :class="editorAreaClass">
       <div class="outlineBox">
         <Outline />
       </div>
@@ -264,6 +289,9 @@ const handleInstall = async () => {
           />
         </template>
       </div>
+      <div class="aiPanelBox">
+        <AIChatPanel ref="aiChatPanelRef" :open="isAIChatOpen" @close="handleCloseAIChatPanel" />
+      </div>
     </div>
   </div>
   <StatusBar
@@ -271,7 +299,9 @@ const handleInstall = async () => {
     :update-status="updateStatus"
     :download-progress="downloadProgress"
     :is-update-dialog-visible="isUpdateDialogVisible"
+    :ai-chat-open="isAIChatOpen"
     @restore-update="handleRestore"
+    @toggle-ai-chat="toggleAIChatPanel"
   />
   <SaveConfirmDialog
     :visible="isDialogVisible"
@@ -330,6 +360,21 @@ const handleInstall = async () => {
     flex: 1;
     width: 100%;
     transition: transform 0.2s ease;
+  }
+
+  .aiPanelBox {
+    position: absolute;
+    right: 0;
+    top: 0;
+    width: 360px;
+    height: 100%;
+    z-index: 12;
+    transform: translateX(100%);
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      transform 0.22s ease,
+      opacity 0.22s ease;
   }
 
   // 打开动画：transform 滑入（GPU 加速，零重排）
@@ -392,6 +437,21 @@ const handleInstall = async () => {
       width: 100%;
       transform: translateX(0);
       transition: transform 0.2s ease;
+    }
+  }
+
+  &.ai-open {
+    .aiPanelBox {
+      transform: translateX(0);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .editorBox {
+      margin-right: 360px;
+      transition:
+        transform 0.2s ease,
+        margin-right 0.22s ease;
     }
   }
 }

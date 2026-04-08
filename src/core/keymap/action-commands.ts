@@ -7,6 +7,7 @@ import { EditorState, Transaction } from "prosemirror-state";
 import { setBlockType, wrapIn, lift } from "prosemirror-commands";
 import { undo, redo } from "prosemirror-history";
 import { toggleSourceView, decorationPluginKey } from "../decorations";
+import { aiCompletionPluginKey } from "../plugins/ai-completion";
 import {
   createEnhancedToggleMark,
   createSetHeadingCommand,
@@ -22,6 +23,17 @@ import {
 import type { ShortcutActionId } from "./types";
 
 type Command = (state: EditorState, dispatch?: (tr: Transaction) => void) => boolean;
+
+function isManualAICompletionEnabled() {
+  try {
+    const raw = localStorage.getItem("milkup-ai-config");
+    if (!raw) return false;
+    const config = JSON.parse(raw);
+    return Boolean(config?.enabled && config?.manualTrigger);
+  } catch {
+    return false;
+  }
+}
 
 /**
  * 构建 ActionId → Command 映射
@@ -81,6 +93,17 @@ export function buildActionCommandMap(schema: Schema): Record<ShortcutActionId, 
 
   // 编辑器操作
   map.toggleSourceView = toggleSourceView;
+  map.triggerAICompletion = (state: EditorState, dispatch?: (tr: Transaction) => void) => {
+    if (!isManualAICompletionEnabled() || state.selection.empty) return false;
+    if (dispatch) {
+      dispatch(
+        state.tr.setMeta(aiCompletionPluginKey, {
+          type: "manual-request",
+        })
+      );
+    }
+    return true;
+  };
   map.undo = undo;
   map.redo = redo;
 
