@@ -33,7 +33,7 @@ import {
 import { createMathBlockSyncPlugin } from "./plugins/math-block-sync";
 import { createHtmlBlockSyncPlugin } from "./plugins/html-block-sync";
 import { createImageSyncPlugin } from "./plugins/image-sync";
-import { createAICompletionPlugin } from "./plugins/ai-completion";
+import { aiCompletionPluginKey, createAICompletionPlugin } from "./plugins/ai-completion";
 import { createPlaceholderPlugin } from "./plugins/placeholder";
 import { createLineNumbersPlugin } from "./plugins/line-numbers";
 import { createSourceViewTransformPlugin } from "./plugins/source-view-transform";
@@ -979,6 +979,27 @@ export class MilkupEditor implements IMilkupEditor {
     });
     menu.appendChild(pasteItem);
 
+    if (hasSelection && this.config.aiConfig) {
+      menu.appendChild(this.createContextMenuSeparator());
+      menu.appendChild(
+        this.createContextMenuItem("AI 分析", false, () => {
+          this.triggerAIAnalysisFromSelection();
+          this.hideContextMenu();
+        })
+      );
+    }
+
+    const canTriggerManualAICompletion =
+      hasSelection && this.config.aiConfig?.enabled && this.config.aiConfig.manualTrigger;
+    if (canTriggerManualAICompletion) {
+      menu.appendChild(
+        this.createContextMenuItemWithShortcut("AI 续写", "triggerAICompletion", false, () => {
+          this.triggerAICompletionFromSelection();
+          this.hideContextMenu();
+        })
+      );
+    }
+
     // 检测是否在表格内
     const inTable = this.isInsideTable(e);
 
@@ -1776,6 +1797,41 @@ export class MilkupEditor implements IMilkupEditor {
   isSourceViewEnabled(): boolean {
     const state = decorationPluginKey.getState(this.view.state);
     return state?.sourceView ?? false;
+  }
+
+  /**
+   * 手动触发 AI 续写
+   * 仅在启用 AI、启用手动触发且存在选区时生效。
+   */
+  triggerAICompletionFromSelection(): boolean {
+    if (!this.config.aiConfig?.enabled || !this.config.aiConfig.manualTrigger) return false;
+    if (this.view.state.selection.empty) return false;
+    this.view.dispatch(
+      this.view.state.tr.setMeta(aiCompletionPluginKey, {
+        type: "manual-request",
+      })
+    );
+    return true;
+  }
+
+  /**
+   * 手动触发 AI 分析
+   * 将当前选区内容发送给右侧 AI 对话栏。
+   */
+  triggerAIAnalysisFromSelection(): boolean {
+    if (!this.config.aiConfig) return false;
+    if (this.view.state.selection.empty) return false;
+
+    const slice = this.view.state.selection.content();
+    const selectedText = this.serializeSliceToMarkdown(slice).trim();
+    if (!selectedText) return false;
+
+    window.dispatchEvent(
+      new CustomEvent("milkup:ai-analysis", {
+        detail: { selectedText },
+      })
+    );
+    return true;
   }
 
   /**

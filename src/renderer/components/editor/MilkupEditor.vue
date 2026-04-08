@@ -179,6 +179,9 @@ function createEditorInstance() {
       get debounceWait() {
         return aiConfig.value.debounceWait;
       },
+      get manualTrigger() {
+        return aiConfig.value.manualTrigger;
+      },
       complete: async (context) => {
         return await AIService.complete(aiConfig.value, context);
       },

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import About from "@/renderer/components/settings/About.vue";
+import AISetting from "@/renderer/components/settings/AISetting.vue";
 import appearancePage from "@/renderer/components/settings/AppearancePage.vue";
 import FileOptions from "@/renderer/components/settings/FileOptions.vue";
 import Language from "@/renderer/components/settings/Language.vue";
@@ -10,11 +11,12 @@ import AppIcon from "@/renderer/components/ui/AppIcon.vue";
 import emitter from "@/renderer/events";
 import { checkUpdate } from "@/renderer/services/api/update.js";
 
-const activeTab = ref<"settings" | "about" | "appearance" | "file" | "language" | "shortcut">(
-  "file"
-);
+const activeTab = ref<
+  "settings" | "ai" | "about" | "appearance" | "file" | "language" | "shortcut"
+>("file");
 const MenuComponents = {
   settings: SettingBase,
+  ai: AISetting,
   about: About,
   language: Language,
   appearance: appearancePage,
@@ -28,6 +30,12 @@ const MenuOptions = [
     action: () => (activeTab.value = "settings"),
     icon: "config-props",
     value: "settings",
+  },
+  {
+    label: "AI",
+    action: () => (activeTab.value = "ai"),
+    icon: "magic-wand",
+    value: "ai",
   },
   {
     label: "外观",

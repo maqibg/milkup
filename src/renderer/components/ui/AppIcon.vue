@@ -3,6 +3,7 @@ import { computed, useAttrs } from "vue";
 import type { FunctionalComponent } from "vue";
 import type { LucideProps } from "lucide-vue-next";
 import {
+  Bot,
   ChevronRight,
   CircleAlert,
   CircleCheckBig,
@@ -23,6 +24,7 @@ import {
   ListTree,
   Minus,
   Palette,
+  Play,
   RefreshCw,
   Settings2,
   Sparkles,
@@ -37,6 +39,7 @@ import {
 
 const iconMap = {
   "arrow-right": ChevronRight,
+  bot: Bot,
   "check-circle": CircleCheckBig,
   "circle-check": CircleCheckBig,
   close: X,
@@ -57,10 +60,12 @@ const iconMap = {
   max: Square,
   min: Minus,
   normal: SquareSquare,
+  play: Play,
   pdf: FileArchive,
   plus: Plus,
   refresh: RefreshCw,
   script: Sparkles,
+  stop: Square,
   type: Type,
   waiguan: Palette,
   "warning-outline": CircleAlert,

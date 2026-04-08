@@ -11,6 +11,30 @@ export interface CompletionResponse {
   continuation: string;
 }
 
+export interface ConnectionProbeResult {
+  expression: string;
+  expected: string;
+  actual: string;
+}
+
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface ChatRequest {
+  systemPrompt: string;
+  messages: ChatMessage[];
+}
+
+export interface ChatResponse {
+  content: string;
+}
+
+export interface ChatRequestOptions {
+  signal?: AbortSignal;
+}
+
 const SYSTEM_PROMPT = `你是一个技术文档续写助手。
 严格只输出以下 JSON，**不要有任何前缀、后缀、markdown、换行、解释**：
 
@@ -38,7 +62,40 @@ const RESPONSE_SCHEMA = {
   },
 };
 
+function buildConnectionExpression() {
+  const operator = Math.random() < 0.5 ? "+" : "-";
+  if (operator === "+") {
+    const left = Math.floor(Math.random() * 10);
+    const right = Math.floor(Math.random() * (10 - left));
+    return {
+      expression: `${left}+${right}`,
+      expected: String(left + right),
+    };
+  }
+
+  const left = Math.floor(Math.random() * 10);
+  const right = Math.floor(Math.random() * (left + 1));
+  return {
+    expression: `${left}-${right}`,
+    expected: String(left - right),
+  };
+}
+
 export class AIService {
+  private static dedupeModels(models: string[]) {
+    return [...new Set(models.map((model) => model.trim()).filter(Boolean))];
+  }
+
+  private static normalizeBaseUrl(baseUrl: string) {
+    return baseUrl.replace(/\/$/, "");
+  }
+
+  private static normalizeGeminiBaseUrl(baseUrl: string) {
+    return this.normalizeBaseUrl(baseUrl)
+      .replace(/\/v1beta$/, "")
+      .replace(/\/v1$/, "");
+  }
+
   private static async request(url: string, options: RequestInit): Promise<any> {
     try {
       const response = await fetch(url, options);
@@ -65,6 +122,15 @@ export class AIService {
 大标题：${context.sectionTitle || "未知"}
 本小节标题：${context.subSectionTitle || "未知"}
 前面内容（请紧密衔接）：${context.previousContent}`;
+  }
+
+  private static fillPromptTemplate(
+    template: string,
+    values: Record<string, string>,
+    fallback: string
+  ) {
+    const source = template.trim() || fallback;
+    return source.replace(/\{\{(\w+)\}\}/g, (_, key: string) => values[key] ?? "");
   }
 
   private static parseResponse(text: string): CompletionResponse {
@@ -94,52 +160,263 @@ export class AIService {
     throw new Error("Failed to parse AI response");
   }
 
-  static async testConnection(config: AIConfig): Promise<boolean> {
+  static async testConnection(config: AIConfig): Promise<ConnectionProbeResult> {
     if (!config.baseUrl) throw new Error("Base URL is required");
 
+    const { expression, expected } = buildConnectionExpression();
+    const prompt = `请计算：${expression}。只输出结果，不要解释，不要公式，不要标点，不要换行。`;
+
+    let url = "";
+    let headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    let body: any = {};
+
     switch (config.provider) {
+      case "openai":
+      case "custom":
+        url = `${this.normalizeBaseUrl(config.baseUrl)}/chat/completions`;
+        if (config.apiKey) {
+          headers["Authorization"] = `Bearer ${config.apiKey}`;
+        }
+        body = {
+          model: config.model,
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0,
+          stream: false,
+        };
+        break;
+
+      case "anthropic":
+        url = `${this.normalizeBaseUrl(config.baseUrl)}/v1/messages`;
+        headers["x-api-key"] = config.apiKey;
+        headers["anthropic-version"] = "2023-06-01";
+        body = {
+          model: config.model,
+          max_tokens: 16,
+          stream: false,
+          messages: [{ role: "user", content: prompt }],
+        };
+        break;
+
+      case "gemini":
+        url = `${this.normalizeGeminiBaseUrl(config.baseUrl)}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+        body = {
+          contents: [
+            {
+              parts: [{ text: prompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0,
+            maxOutputTokens: 16,
+          },
+        };
+        break;
+
       case "ollama":
-        try {
-          // Check tags for Ollama
-          await this.request(`${config.baseUrl}/api/tags`, { method: "GET" });
-          return true;
-        } catch {
-          return false;
-        }
+        url = `${this.normalizeBaseUrl(config.baseUrl)}/api/chat`;
+        body = {
+          model: config.model,
+          messages: [{ role: "user", content: prompt }],
+          stream: false,
+          options: {
+            temperature: 0,
+          },
+        };
+        break;
+
       default:
-        // For others, we might try a minimal model list call or just assume verified if user saves?
-        // Let's try to list models for OpenAI compatible APIs
-        if (config.provider === "openai" || config.provider === "custom") {
-          try {
-            await this.request(`${config.baseUrl}/models`, {
-              headers: { Authorization: `Bearer ${config.apiKey}` },
-            });
-            return true;
-          } catch {
-            // Some endpoints might not support /models, maybe try a tiny completion?
-            // But usually /models is standard.
-            return false;
-          }
-        }
-        return true; // Fallback for Anthropic/Gemini verification implementation later if needed
+        throw new Error(`Unsupported provider: ${config.provider}`);
     }
+
+    const response = await this.request(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    });
+
+    let content = "";
+    if (config.provider === "openai" || config.provider === "custom") {
+      content = response.choices?.[0]?.message?.content || "";
+    } else if (config.provider === "anthropic") {
+      content = response.content?.find((item: any) => item.type === "text")?.text || "";
+    } else if (config.provider === "gemini") {
+      content = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    } else if (config.provider === "ollama") {
+      content = response.message?.content || "";
+    }
+
+    const actual = content.trim();
+    if (!actual) {
+      throw new Error("模型未返回内容");
+    }
+
+    return {
+      expression,
+      expected,
+      actual,
+    };
   }
 
   static async getModels(config: AIConfig): Promise<string[]> {
-    if (config.provider === "ollama") {
-      try {
-        const res = await this.request(`${config.baseUrl}/api/tags`, { method: "GET" });
-        return res.models?.map((m: any) => m.name) || [];
-      } catch (e) {
-        console.error("Failed to fetch Ollama models", e);
-        return [];
+    try {
+      if (config.provider === "ollama") {
+        const res = await this.request(`${this.normalizeBaseUrl(config.baseUrl)}/api/tags`, {
+          method: "GET",
+        });
+        return this.dedupeModels(res.models?.map((m: any) => m.name) || []);
       }
+
+      if (config.provider === "openai" || config.provider === "custom") {
+        const res = await this.request(`${this.normalizeBaseUrl(config.baseUrl)}/models`, {
+          method: "GET",
+          headers: config.apiKey ? { Authorization: `Bearer ${config.apiKey}` } : {},
+        });
+        return this.dedupeModels(res.data?.map((model: any) => model.id) || []);
+      }
+
+      if (config.provider === "gemini") {
+        const baseUrl = this.normalizeGeminiBaseUrl(config.baseUrl);
+        const res = await this.request(`${baseUrl}/v1beta/models?key=${config.apiKey}`, {
+          method: "GET",
+        });
+        return this.dedupeModels(
+          res.models?.map((model: any) =>
+            typeof model.name === "string" ? model.name.replace(/^models\//, "") : ""
+          ) || []
+        );
+      }
+    } catch (e) {
+      console.error("Failed to fetch models", e);
+      return [];
     }
+
     return [];
   }
 
+  static async chat(
+    config: AIConfig,
+    request: ChatRequest,
+    options: ChatRequestOptions = {}
+  ): Promise<ChatResponse> {
+    const systemPrompt = request.systemPrompt.trim();
+    const messages = request.messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
+
+    let url = "";
+    let headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    let body: any = {};
+
+    switch (config.provider) {
+      case "openai":
+      case "custom":
+        url = `${this.normalizeBaseUrl(config.baseUrl)}/chat/completions`;
+        if (config.apiKey) {
+          headers["Authorization"] = `Bearer ${config.apiKey}`;
+        }
+        body = {
+          model: config.model,
+          messages: [{ role: "system", content: systemPrompt }, ...messages],
+          temperature: config.temperature,
+          stream: false,
+        };
+        break;
+
+      case "anthropic":
+        url = `${this.normalizeBaseUrl(config.baseUrl)}/v1/messages`;
+        headers["x-api-key"] = config.apiKey;
+        headers["anthropic-version"] = "2023-06-01";
+        body = {
+          model: config.model,
+          system: systemPrompt,
+          messages,
+          max_tokens: 4096,
+          stream: false,
+        };
+        break;
+
+      case "gemini":
+        url = `${this.normalizeGeminiBaseUrl(config.baseUrl)}/v1beta/models/${config.model}:generateContent?key=${config.apiKey}`;
+        body = {
+          systemInstruction: {
+            parts: [{ text: systemPrompt }],
+          },
+          contents: messages.map((message) => ({
+            role: message.role === "assistant" ? "model" : "user",
+            parts: [{ text: message.content }],
+          })),
+          generationConfig: {
+            temperature: config.temperature,
+            maxOutputTokens: 4096,
+          },
+        };
+        break;
+
+      case "ollama":
+        url = `${this.normalizeBaseUrl(config.baseUrl)}/api/chat`;
+        body = {
+          model: config.model,
+          messages: [{ role: "system", content: systemPrompt }, ...messages],
+          stream: false,
+          options: {
+            temperature: config.temperature,
+          },
+        };
+        break;
+
+      default:
+        throw new Error(`Unsupported provider: ${config.provider}`);
+    }
+
+    const response = await this.request(url, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: options.signal,
+    });
+
+    let content = "";
+    if (config.provider === "openai" || config.provider === "custom") {
+      content = response.choices?.[0]?.message?.content || "";
+    } else if (config.provider === "anthropic") {
+      content =
+        response.content
+          ?.filter((item: any) => item.type === "text")
+          .map((item: any) => item.text)
+          .join("\n") || "";
+    } else if (config.provider === "gemini") {
+      content =
+        response.candidates?.[0]?.content?.parts?.map((part: any) => part.text || "").join("\n") ||
+        "";
+    } else if (config.provider === "ollama") {
+      content = response.message?.content || "";
+    }
+
+    const normalized = content.trim();
+    if (!normalized) {
+      throw new Error("模型未返回内容");
+    }
+
+    return { content: normalized };
+  }
+
   static async complete(config: AIConfig, context: APIContext): Promise<CompletionResponse> {
-    const userMessage = this.buildPrompt(context);
+    const fallbackPrompt = this.buildPrompt(context);
+    const userMessage = this.fillPromptTemplate(
+      config.continuationPrompt,
+      {
+        fileTitle: context.fileTitle || "未知",
+        sectionTitle: context.sectionTitle || "未知",
+        subSectionTitle: context.subSectionTitle || "未知",
+        previousContent: context.previousContent,
+      },
+      fallbackPrompt
+    );
 
     let url = "";
     let headers: Record<string, string> = {

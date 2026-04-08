@@ -10,13 +10,15 @@ const props = defineProps<{
   updateStatus?: "idle" | "downloading" | "downloaded" | "error";
   downloadProgress?: number;
   isUpdateDialogVisible?: boolean;
+  aiChatOpen?: boolean;
 }>();
 const emit = defineEmits<{
   (e: "restore-update"): void;
+  (e: "toggle-ai-chat"): void;
 }>();
 
 const { viewMode, setEditorViewMode, toggleSourceCode, toggleCompareView } = useSourceCode();
-const mode = ref<"lines" | "chars" | "words" | "all">("chars");
+const mode = ref<"lines" | "chars" | "words" | "all">("all");
 const viewButtonRef = ref<HTMLElement | null>(null);
 const viewMenuRef = ref<HTMLElement | null>(null);
 const viewMenu = ref({
@@ -61,6 +63,10 @@ const viewButtonIcon = computed(() => {
 
 function handleRestore() {
   emit("restore-update");
+}
+
+function toggleAIChat() {
+  emit("toggle-ai-chat");
 }
 
 function cycleEditorViewMode() {
@@ -240,7 +246,17 @@ onUnmounted(() => {
       </div>
     </div>
 
-    <span class="statusBarText" @click="cycleMode">{{ displayText }}</span>
+    <div class="right-section">
+      <span class="statusBarText" @click="cycleMode">{{ displayText }}</span>
+      <span
+        class="status-icon-btn"
+        :class="{ active: aiChatOpen }"
+        title="AI 对话"
+        @click="toggleAIChat"
+      >
+        <AppIcon name="bot" />
+      </span>
+    </div>
   </div>
 
   <Teleport to="body">
@@ -289,6 +305,12 @@ onUnmounted(() => {
 .status-actions {
   display: flex;
   align-items: center;
+}
+
+.right-section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .status-icon-btn,

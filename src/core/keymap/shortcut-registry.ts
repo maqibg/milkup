@@ -113,6 +113,13 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
     key: "Mod-Shift-/",
     defaultKey: "Mod-Shift-/",
   },
+  {
+    id: "triggerAICompletion",
+    label: "AI 续写",
+    category: "editor",
+    key: "Mod-Shift-a",
+    defaultKey: "Mod-Shift-a",
+  },
   { id: "undo", label: "撤销", category: "editor", key: "Mod-z", defaultKey: "Mod-z" },
   { id: "redo", label: "重做", category: "editor", key: "Mod-y", defaultKey: "Mod-y" },
 ];

@@ -26,6 +26,7 @@ export type ShortcutActionId =
   | "insertMathBlock"
   | "toggleSourceView"
   | "toggleCompareView"
+  | "triggerAICompletion"
   | "undo"
   | "redo";
 
