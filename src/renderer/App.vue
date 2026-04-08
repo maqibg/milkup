@@ -334,6 +334,8 @@ const handleInstall = async () => {
 }
 
 .editorArea {
+  --outline-width: 25%;
+  --ai-panel-width: clamp(320px, 30vw, 380px);
   height: 0;
   flex: 1;
   display: flex;
@@ -345,7 +347,7 @@ const handleInstall = async () => {
     position: absolute;
     left: 0;
     top: 0;
-    width: 25%;
+    width: var(--outline-width);
     height: 100%;
     z-index: 10;
     transform: translateX(-100%);
@@ -358,23 +360,25 @@ const handleInstall = async () => {
 
   .editorBox {
     flex: 1;
+    min-width: 0;
     width: 100%;
-    transition: transform 0.2s ease;
+    transition: transform 0.22s ease;
   }
 
   .aiPanelBox {
-    position: absolute;
-    right: 0;
-    top: 0;
-    width: 360px;
+    position: relative;
+    flex: 0 0 0;
+    width: 0;
+    min-width: 0;
     height: 100%;
-    z-index: 12;
-    transform: translateX(100%);
+    overflow: hidden;
     opacity: 0;
     pointer-events: none;
     transition:
-      transform 0.22s ease,
-      opacity 0.22s ease;
+      width 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+      flex-basis 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.18s ease;
+    will-change: width, flex-basis, opacity;
   }
 
   // 打开动画：transform 滑入（GPU 加速，零重排）
@@ -385,7 +389,7 @@ const handleInstall = async () => {
       pointer-events: auto;
     }
     .editorBox {
-      transform: translateX(25%);
+      transform: translateX(var(--outline-width));
     }
   }
 
@@ -401,6 +405,7 @@ const handleInstall = async () => {
     }
     .editorBox {
       width: 0;
+      min-width: 0;
       transform: none;
       transition: none;
     }
@@ -417,7 +422,8 @@ const handleInstall = async () => {
     }
     .editorBox {
       width: 100%;
-      transform: translateX(25%);
+      min-width: 0;
+      transform: translateX(var(--outline-width));
       transition: none;
     }
   }
@@ -435,23 +441,40 @@ const handleInstall = async () => {
     }
     .editorBox {
       width: 100%;
+      min-width: 0;
       transform: translateX(0);
-      transition: transform 0.2s ease;
+      transition: transform 0.22s ease;
     }
   }
 
   &.ai-open {
     .aiPanelBox {
-      transform: translateX(0);
+      flex-basis: var(--ai-panel-width);
+      width: var(--ai-panel-width);
       opacity: 1;
       pointer-events: auto;
     }
+  }
+}
 
-    .editorBox {
-      margin-right: 360px;
-      transition:
-        transform 0.2s ease,
-        margin-right 0.22s ease;
+@media (max-width: 1280px) {
+  .editorArea {
+    --ai-panel-width: 340px;
+  }
+}
+
+@media (max-width: 1080px) {
+  .editorArea {
+    --ai-panel-width: 300px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editorArea {
+    .outlineBox,
+    .editorBox,
+    .aiPanelBox {
+      transition: none !important;
     }
   }
 }
