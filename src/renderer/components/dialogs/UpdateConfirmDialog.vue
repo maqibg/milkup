@@ -23,6 +23,23 @@ interface Emits {
 const props = defineProps<Props>();
 const emit = defineEmits<Emits>();
 const updateInfo = ref(JSON.parse(localStorage.getItem("updateInfo") || "{}"));
+const DANGEROUS_ELEMENTS = new Set([
+  "script",
+  "style",
+  "iframe",
+  "object",
+  "embed",
+  "applet",
+  "form",
+  "base",
+  "link",
+  "meta",
+  "noscript",
+  "template",
+  "frame",
+  "frameset",
+]);
+const DANGEROUS_URL_RE = /^\s*(javascript|vbscript|data)\s*:/i;
 
 function handleIgnore() {
   emit("ignore");
@@ -70,6 +87,51 @@ async function renderMarkdown(markdown: string): Promise<string> {
   return String(file);
 }
 
+function sanitizeNode(node: Node) {
+  const toRemove: Node[] = [];
+
+  node.childNodes.forEach((child) => {
+    if (child.nodeType !== Node.ELEMENT_NODE) return;
+
+    const el = child as Element;
+    const tag = el.tagName.toLowerCase();
+    if (DANGEROUS_ELEMENTS.has(tag)) {
+      toRemove.push(child);
+      return;
+    }
+
+    for (const attr of Array.from(el.attributes)) {
+      if (attr.name.toLowerCase().startsWith("on")) {
+        el.removeAttribute(attr.name);
+      }
+    }
+
+    for (const urlAttr of ["href", "src", "action", "formaction", "xlink:href"]) {
+      const value = el.getAttribute(urlAttr);
+      if (value && DANGEROUS_URL_RE.test(value)) {
+        el.removeAttribute(urlAttr);
+      }
+    }
+
+    if (tag === "a") {
+      el.setAttribute("target", "_blank");
+      el.setAttribute("rel", "noopener noreferrer");
+    }
+
+    sanitizeNode(child);
+  });
+
+  for (const child of toRemove) {
+    node.removeChild(child);
+  }
+}
+
+function sanitizeHtmlString(htmlContent: string) {
+  const doc = new DOMParser().parseFromString(htmlContent, "text/html");
+  sanitizeNode(doc.body);
+  return doc.body.innerHTML;
+}
+
 watch(
   () => props.visible,
   async (newVal) => {
@@ -78,7 +140,7 @@ watch(
       nextTick(async () => {
         if (updateLogContainer.value) {
           const markdown = updateInfo.value.notes || "更新日志加载失败，请前往官网下载最新版本。";
-          const html = await renderMarkdown(markdown);
+          const html = sanitizeHtmlString(await renderMarkdown(markdown));
           updateLogContainer.value.innerHTML = html;
         }
       });

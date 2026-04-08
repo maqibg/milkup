@@ -37,11 +37,11 @@ async function createWindow() {
     titleBarStyle: "hidden", // ✅ macOS 专属
     icon: path.join(__dirname, "../assets/icons/milkup.ico"),
     webPreferences: {
-      sandbox: false,
+      sandbox: true,
       preload: path.resolve(__dirname, "../../dist-electron/preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false, // 允许加载本地文件
+      webSecurity: true,
     },
   });
 
@@ -114,11 +114,11 @@ export async function createThemeEditorWindow() {
     titleBarStyle: "hidden",
     icon: path.join(__dirname, "../assets/icons/milkup.ico"),
     webPreferences: {
-      sandbox: false,
+      sandbox: true,
       preload: path.resolve(__dirname, "../../dist-electron/preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false,
+      webSecurity: true,
     },
   });
 
@@ -202,7 +202,6 @@ protocol.registerSchemesAsPrivileged([
   {
     scheme: "milkup",
     privileges: {
-      bypassCSP: true,
       supportFetchAPI: true,
       standard: true,
       secure: true,
@@ -217,8 +216,7 @@ app.whenReady().then(async () => {
   registerIpcHandleHandlers();
   setupUpdateHandlers();
 
-  // 注册自定义协议处理器（仅用于兼容旧版本残留的 milkup:// URL）
-  // 新版本使用 file:// 协议直接加载本地图片
+  // 注册自定义协议处理器，用于渲染本地图片并兼容旧版本残留的 milkup:// URL
   protocol.registerFileProtocol("milkup", (request, callback) => {
     try {
       const rawUrl = request.url;
@@ -231,7 +229,21 @@ app.whenReady().then(async () => {
         urlPath = rawUrl.substring("milkup://".length);
       }
 
-      // 旧格式：<base64-encoded-markdown-path>/<relative-image-path>
+      if (urlPath.startsWith("absolute/")) {
+        const encodedAbsolutePath = urlPath.substring("absolute/".length);
+        const absolutePath = Buffer.from(encodedAbsolutePath, "base64").toString("utf-8");
+
+        if (!fs.existsSync(absolutePath)) {
+          console.error("[milkup protocol] 文件不存在:", absolutePath);
+          callback({ error: -6 });
+          return;
+        }
+
+        callback({ path: absolutePath });
+        return;
+      }
+
+      // 兼容旧格式：<base64-encoded-markdown-path>/<relative-image-path>
       const firstSlashIndex = urlPath.indexOf("/");
       if (firstSlashIndex === -1) {
         callback({ error: -2 });
@@ -240,7 +252,6 @@ app.whenReady().then(async () => {
 
       const encodedMdPath = urlPath.substring(0, firstSlashIndex);
       const relativePath = urlPath.substring(firstSlashIndex + 1);
-
       const markdownPath = Buffer.from(encodedMdPath, "base64").toString("utf-8");
       const markdownDir = path.dirname(markdownPath);
       const absolutePath = path.resolve(markdownDir, decodeURIComponent(relativePath));

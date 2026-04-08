@@ -367,39 +367,36 @@ export function setupUpdateHandlers() {
       downloadAbortController.signal.addEventListener("abort", abortHandler);
 
       try {
-        await new Promise<void>(async (resolve, reject) => {
+        await new Promise<void>((resolve, reject) => {
           fileStream.on("error", reject);
           fileStream.on("finish", resolve);
 
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
+          void (async () => {
+            try {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-              downloadedBytes += value.length;
-              const canWrite = fileStream.write(value);
-              if (!canWrite) {
-                await new Promise<void>((r) => fileStream.once("drain", () => r()));
-              }
+                downloadedBytes += value.length;
+                const canWrite = fileStream.write(value);
+                if (!canWrite) {
+                  await new Promise<void>((r) => fileStream.once("drain", () => r()));
+                }
 
-              // Send progress
-              if (totalBytes > 0) {
-                const percent = (downloadedBytes / totalBytes) * 100;
-                // Throttle progress updates to avoid IPC flooding?
-                // For now just send every chunk or maybe every 1%?
-                // Let's keep it simple as before, but maybe check if % changed significantly if needed.
-                // Existing logic sent every chunk.
-                broadcastToAll("update:download-progress", {
-                  percent,
-                  total: totalBytes,
-                  transferred: downloadedBytes,
-                });
+                if (totalBytes > 0) {
+                  const percent = (downloadedBytes / totalBytes) * 100;
+                  broadcastToAll("update:download-progress", {
+                    percent,
+                    total: totalBytes,
+                    transferred: downloadedBytes,
+                  });
+                }
               }
+              fileStream.end();
+            } catch (err) {
+              reject(err);
             }
-            fileStream.end();
-          } catch (err) {
-            reject(err);
-          }
+          })();
         });
       } finally {
         downloadAbortController.signal.removeEventListener("abort", abortHandler);

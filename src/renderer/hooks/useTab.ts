@@ -827,7 +827,7 @@ function handleTabMergePreviewFinalize() {
  * 动态更新合并预览 Tab 的插入位置
  * 由主进程在光标移动时持续发送，实现拖拽悬停时预览 Tab 跟随光标变换顺序
  */
-function handleTabMergePreviewUpdate(screenX: number, screenY: number) {
+function handleTabMergePreviewUpdate(screenX: number, _screenY: number) {
   if (!mergePreviewState || mergePreviewState.isExisting) return;
 
   const { tabId } = mergePreviewState;

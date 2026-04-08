@@ -12,12 +12,7 @@ import chokidar from "chokidar";
 import { Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
 import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
 import { getFonts } from "font-list";
-import {
-  cleanupProtocolUrls,
-  detectFileTraits,
-  normalizeMarkdown,
-  restoreFileTraits,
-} from "./fileFormat";
+import { restoreFileTraits } from "./fileFormat";
 import { createThemeEditorWindow } from "./index";
 import { isMarkdownFilePath, normalizeMarkdownFilePath, readMarkdownFile } from "./markdownFile";
 import {
@@ -61,6 +56,7 @@ let watcher: FSWatcher | null = null;
 // 目录监听 watcher
 let directoryWatcher: FSWatcher | null = null;
 let directoryChangedDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+const INVALID_FILE_NAME_CHARS = new Set(["<", ">", ":", '"', "/", "\\", "|", "?", "*"]);
 
 function isAbsoluteImageDirectory(inputPath: string): boolean {
   if (!inputPath) return false;
@@ -159,6 +155,15 @@ function normalizeExternalLink(target: string): string {
   return `https://${trimmed}`;
 }
 
+function normalizeSafeExternalLink(target: string): string | null {
+  const externalUrl = normalizeExternalLink(target);
+  if (!externalUrl) return null;
+  if (/^https?:\/\//i.test(externalUrl) || /^mailto:/i.test(externalUrl)) {
+    return externalUrl;
+  }
+  return null;
+}
+
 function getImageOutputExtension(fileName?: string, mimeType?: string): string {
   const fileExt = fileName ? path.extname(fileName) : "";
   if (fileExt) {
@@ -184,7 +189,11 @@ function getImageOutputExtension(fileName?: string, mimeType?: string): string {
 function createImageFileName(fileName?: string, mimeType?: string): string {
   const ext = getImageOutputExtension(fileName, mimeType);
   const rawBaseName = fileName ? path.basename(fileName, path.extname(fileName)) : "image";
-  const safeBaseName = (rawBaseName || "image").replace(/[<>:"/\\|?*\x00-\x1F]/g, "-").trim();
+  const safeBaseName = Array.from(rawBaseName || "image", (char) =>
+    hasInvalidFileNameChar(char) ? "-" : char
+  )
+    .join("")
+    .trim();
 
   return `${safeBaseName || "image"}-${Date.now()}${ext}`;
 }
@@ -233,6 +242,71 @@ function isAppTempImagePath(imagePath: string): boolean {
   return (
     normalizedImagePath.startsWith(userDataPath + path.sep) || normalizedImagePath === userDataPath
   );
+}
+
+function isFileSystemRoot(targetPath: string): boolean {
+  const resolvedPath = path.resolve(targetPath);
+  const parsedRoot = path.parse(resolvedPath).root;
+  const normalizedRoot = parsedRoot.endsWith(path.sep) ? parsedRoot.slice(0, -1) : parsedRoot;
+
+  return resolvedPath === parsedRoot || resolvedPath === normalizedRoot;
+}
+
+function hasInvalidFileNameChar(value: string): boolean {
+  for (const char of value) {
+    if (INVALID_FILE_NAME_CHARS.has(char)) return true;
+    const code = char.charCodeAt(0);
+    if (code >= 0 && code <= 31) return true;
+  }
+
+  return false;
+}
+
+function ensureExistingDirectory(dirPath: string): string {
+  const trimmedPath = dirPath.trim();
+  if (!trimmedPath) {
+    throw new Error("目录不能为空");
+  }
+
+  const resolvedPath = path.resolve(trimmedPath);
+  const stat = fs.statSync(resolvedPath);
+  if (!stat.isDirectory()) {
+    throw new Error("目标不是目录");
+  }
+
+  return resolvedPath;
+}
+
+function ensureSafeChildName(name: string, label: "文件名" | "文件夹名"): string {
+  const trimmedName = name.trim();
+  if (!trimmedName) {
+    throw new Error(`${label}不能为空`);
+  }
+  if (trimmedName === "." || trimmedName === "..") {
+    throw new Error(`${label}非法`);
+  }
+  if (trimmedName.includes("/") || trimmedName.includes("\\")) {
+    throw new Error(`${label}不能包含路径分隔符`);
+  }
+  if (hasInvalidFileNameChar(trimmedName)) {
+    throw new Error(`${label}包含非法字符`);
+  }
+
+  return trimmedName;
+}
+
+function ensureSafeMutationTarget(targetPath: string): string {
+  const trimmedPath = targetPath.trim();
+  if (!trimmedPath) {
+    throw new Error("路径不能为空");
+  }
+
+  const resolvedPath = path.resolve(trimmedPath);
+  if (isFileSystemRoot(resolvedPath)) {
+    throw new Error("禁止操作根目录");
+  }
+
+  return resolvedPath;
 }
 
 function replaceMarkdownImageSources(
@@ -335,7 +409,8 @@ export function registerIpcOnHandlers() {
     }
   });
   ipcMain.on("shell:openExternal", (_event, url) => {
-    shell.openExternal(url);
+    const externalUrl = normalizeSafeExternalLink(url);
+    if (externalUrl) void shell.openExternal(externalUrl);
   });
   ipcMain.handle("shell:openLink", async (event, href: string, currentFilePath?: string | null) => {
     const localPath = resolveLocalLinkPath(href, currentFilePath);
@@ -365,7 +440,7 @@ export function registerIpcOnHandlers() {
       return;
     }
 
-    const externalUrl = normalizeExternalLink(href);
+    const externalUrl = normalizeSafeExternalLink(href);
     if (externalUrl) {
       await shell.openExternal(externalUrl);
     }
@@ -637,11 +712,12 @@ export function registerIpcHandleHandlers() {
         </style>
       `;
       const cssKey = await sender.insertCSS(preventCutOffStyle);
+      const serializedSelector = JSON.stringify(elementSelector);
 
       // 1. 在页面中克隆元素并隐藏其他内容
       await sender.executeJavaScript(`
           (function() {
-            const target = document.querySelector('${elementSelector}');
+            const target = document.querySelector(${serializedSelector});
             if (!target) throw new Error('Element not found');
   
             // 克隆节点
@@ -970,7 +1046,7 @@ export function registerGlobalIpcHandlers() {
     try {
       if (platform === "win32") {
         const buf = clipboard.readBuffer("FileNameW");
-        const raw = buf.toString("ucs2").replace(/\0/g, "");
+        const raw = buf.toString("ucs2").split("\u0000").join("");
         return raw.split("\r\n").filter((s) => s.trim())[0] || null;
       } else if (platform === "darwin") {
         const url = clipboard.read("public.file-url");
@@ -1023,9 +1099,7 @@ export function registerGlobalIpcHandlers() {
   // 获取目录下的文件列表（树形结构）
   ipcMain.handle("workspace:getDirectoryFiles", async (_event, dirPath: string) => {
     try {
-      if (!dirPath || !fs.existsSync(dirPath)) {
-        return [];
-      }
+      const resolvedDirPath = ensureExistingDirectory(dirPath);
 
       interface WorkSpace {
         name: string;
@@ -1124,7 +1198,7 @@ export function registerGlobalIpcHandlers() {
         }
       }
 
-      return await scanDirectory(dirPath);
+      return await scanDirectory(resolvedDirPath);
     } catch (error) {
       console.error("获取目录文件失败:", error);
       return [];
@@ -1134,7 +1208,7 @@ export function registerGlobalIpcHandlers() {
   ipcMain.handle("workspace:exists", async (_event, dirPath: string) => {
     try {
       if (!dirPath) return false;
-      return fs.existsSync(dirPath);
+      return fs.statSync(path.resolve(dirPath)).isDirectory();
     } catch {
       return false;
     }
@@ -1194,12 +1268,17 @@ export function registerGlobalIpcHandlers() {
       directoryWatcher = null;
     }
 
-    if (!dirPath || !fs.existsSync(dirPath)) return;
+    let resolvedDirPath: string;
+    try {
+      resolvedDirPath = ensureExistingDirectory(dirPath);
+    } catch {
+      return;
+    }
 
     const IGNORE_DIRS =
       /(?:^|[/\\])(?:\.git|\.vscode|\.idea|node_modules|\.next|\.nuxt|dist|build|coverage)(?:[/\\]|$)/;
 
-    directoryWatcher = chokidar.watch(dirPath, {
+    directoryWatcher = chokidar.watch(resolvedDirPath, {
       ignoreInitial: true,
       depth: 10,
       ignored: (watchPath) => IGNORE_DIRS.test(watchPath),
@@ -1241,7 +1320,12 @@ export function registerGlobalIpcHandlers() {
     "workspace:createFile",
     async (_event, { dirPath, fileName }: { dirPath: string; fileName: string }) => {
       try {
-        const filePath = path.join(dirPath, fileName);
+        const resolvedDirPath = ensureExistingDirectory(dirPath);
+        const safeFileName = ensureSafeChildName(fileName, "文件名");
+        const filePath = path.join(resolvedDirPath, safeFileName);
+        if (fs.existsSync(filePath)) {
+          throw new Error("文件已存在");
+        }
         fs.writeFileSync(filePath, "", "utf-8");
         return filePath;
       } catch (error) {
@@ -1256,7 +1340,12 @@ export function registerGlobalIpcHandlers() {
     "workspace:createFolder",
     async (_event, { dirPath, folderName }: { dirPath: string; folderName: string }) => {
       try {
-        const folderPath = path.join(dirPath, folderName);
+        const resolvedDirPath = ensureExistingDirectory(dirPath);
+        const safeFolderName = ensureSafeChildName(folderName, "文件夹名");
+        const folderPath = path.join(resolvedDirPath, safeFolderName);
+        if (fs.existsSync(folderPath)) {
+          throw new Error("文件夹已存在");
+        }
         fs.mkdirSync(folderPath, { recursive: true });
         return folderPath;
       } catch (error) {
@@ -1269,7 +1358,8 @@ export function registerGlobalIpcHandlers() {
   // 删除文件或文件夹
   ipcMain.handle("workspace:deleteFile", async (_event, filePath: string) => {
     try {
-      fs.rmSync(filePath, { recursive: true });
+      const resolvedPath = ensureSafeMutationTarget(filePath);
+      fs.rmSync(resolvedPath, { recursive: true });
       return true;
     } catch (error) {
       console.error("删除文件失败:", error);
@@ -1282,9 +1372,14 @@ export function registerGlobalIpcHandlers() {
     "workspace:renameFile",
     async (_event, { oldPath, newName }: { oldPath: string; newName: string }) => {
       try {
-        const dir = path.dirname(oldPath);
-        const newPath = path.join(dir, newName);
-        fs.renameSync(oldPath, newPath);
+        const resolvedOldPath = ensureSafeMutationTarget(oldPath);
+        const safeNewName = ensureSafeChildName(newName, "文件名");
+        const dir = path.dirname(resolvedOldPath);
+        const newPath = path.join(dir, safeNewName);
+        if (fs.existsSync(newPath)) {
+          throw new Error("目标名称已存在");
+        }
+        fs.renameSync(resolvedOldPath, newPath);
         return newPath;
       } catch (error) {
         console.error("重命名文件失败:", error);
@@ -1323,7 +1418,7 @@ export function getIsQuitting() {
   // 显式退出标记 或 所有窗口都已在关闭流程中
   if (isQuitting) return true;
   const allWindows = BrowserWindow.getAllWindows().filter((w) => !w.isDestroyed());
-  return allWindows.length === 0 || allWindows.every((w) => windowClosingSet.has(w.id));
+  return allWindows.every((w) => windowClosingSet.has(w.id));
 }
 
 /** 检查指定窗口是否已在关闭流程中（由 close:discard 或 close() 发起） */

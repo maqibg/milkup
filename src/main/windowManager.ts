@@ -165,11 +165,11 @@ export async function createEditorWindow(
     show: !fastCreate, // 拖拽跟随窗口初始不显示，避免抢夺焦点
     icon: path.join(__dirname, "../assets/icons/milkup.ico"),
     webPreferences: {
-      sandbox: false,
+      sandbox: true,
       preload: path.resolve(__dirname, "../../dist-electron/preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
-      webSecurity: false,
+      webSecurity: true,
     },
   };
 
