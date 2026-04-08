@@ -545,7 +545,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="AIChatPanel">
+  <div class="AIChatPanel" :class="{ open: props.open }">
     <div class="panel-header">
       <div class="panel-title-box">
         <div class="panel-title">
@@ -760,6 +760,8 @@ defineExpose({
 
 <style scoped lang="less">
 .AIChatPanel {
+  width: 100%;
+  min-width: 0;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -772,9 +774,22 @@ defineExpose({
     linear-gradient(180deg, var(--background-color-1), var(--background-color-2));
   border-left: 1px solid var(--border-color-1);
   box-shadow: -16px 0 30px rgba(0, 0, 0, 0.08);
+  opacity: 0;
+  transform: translateX(18px) scale(0.985);
+  transition:
+    opacity 0.18s ease,
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform, opacity;
+  overflow: hidden;
+}
+
+.AIChatPanel.open {
+  opacity: 1;
+  transform: translateX(0) scale(1);
 }
 
 .panel-header {
+  flex-shrink: 0;
   height: 56px;
   display: flex;
   align-items: center;
@@ -788,6 +803,7 @@ defineExpose({
 
 .panel-title-box {
   min-width: 0;
+  flex: 1;
 }
 
 .panel-title {
@@ -837,10 +853,12 @@ defineExpose({
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 16px 14px 10px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  overscroll-behavior: contain;
 }
 
 .empty-state {
@@ -945,6 +963,7 @@ defineExpose({
   line-height: 1.7;
   color: var(--text-color-1);
   overflow-wrap: anywhere;
+  word-break: break-word;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03);
 
   .message-item.user & {
@@ -1155,6 +1174,7 @@ defineExpose({
 }
 
 .panel-footer {
+  flex-shrink: 0;
   padding: 12px;
   border-top: 1px solid color-mix(in srgb, var(--border-color-1) 82%, transparent);
   background: color-mix(in srgb, var(--background-color-2) 94%, #fff 6%);
@@ -1186,18 +1206,20 @@ defineExpose({
   justify-content: space-between;
   gap: 10px;
   margin-top: 10px;
+  min-width: 0;
 }
 
 .model-switcher {
   position: relative;
   min-width: 0;
+  flex: 1;
 }
 
 .ai-model-button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  max-width: 230px;
+  width: min(100%, 230px);
   padding: 8px 12px;
   border: 1px solid var(--border-color-1);
   border-radius: 999px;
@@ -1215,6 +1237,7 @@ defineExpose({
 }
 
 .model-button-text {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1348,6 +1371,37 @@ defineExpose({
   &:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+}
+
+@media (max-width: 1080px) {
+  .AIChatPanel {
+    transform: translateX(14px);
+  }
+
+  .panel-messages {
+    padding-inline: 12px;
+  }
+
+  .panel-footer {
+    padding: 10px;
+  }
+
+  .chat-input {
+    min-height: 88px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .AIChatPanel,
+  .header-btn,
+  .message-actions,
+  .message-action-btn,
+  .chat-input,
+  .ai-model-button,
+  .send-btn,
+  .model-chevron {
+    transition: none !important;
   }
 }
 </style>

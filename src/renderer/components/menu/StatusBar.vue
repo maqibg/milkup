@@ -321,15 +321,20 @@ onUnmounted(() => {
   justify-content: center;
   border-radius: 4px;
   cursor: pointer;
-  transition: background 0.2s ease;
+  transition:
+    background 0.18s ease,
+    color 0.18s ease,
+    transform 0.18s ease;
 
   &:hover {
     background: var(--hover-color);
+    transform: translateY(-1px);
   }
 }
 
 .status-icon-btn.active {
   color: var(--primary-color);
+  background: color-mix(in srgb, var(--primary-color) 10%, transparent);
 }
 
 .statusBarText {
@@ -411,5 +416,12 @@ onUnmounted(() => {
 
 .view-context-check {
   color: var(--primary-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-icon-btn,
+  .statusBarText {
+    transition: none !important;
+  }
 }
 </style>
