@@ -17,15 +17,6 @@ import { sourceViewManager } from "../decorations";
 const imageViews = new Set<ImageView>();
 
 /**
- * 在浏览器端简单解析目录路径
- */
-function dirname(filePath: string): string {
-  const sep = filePath.includes("\\") ? "\\" : "/";
-  const lastIndex = filePath.lastIndexOf(sep);
-  return lastIndex === -1 ? "." : filePath.substring(0, lastIndex);
-}
-
-/**
  * 在浏览器端简单拼接路径并规范化为正斜杠
  */
 function joinPath(dir: string, relative: string): string {
@@ -51,23 +42,20 @@ function isAbsoluteLocalPath(src: string): boolean {
   return src.startsWith("/");
 }
 
-function toFileUrl(src: string): string {
-  const normalized = src.replace(/\\/g, "/");
+function encodeBase64(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
 
-  if (/^\/\/[^/]/.test(normalized)) {
-    return `file:${normalized}`;
+  const CHUNK_SIZE = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK_SIZE));
   }
 
-  if (/^[a-z]:\//i.test(normalized)) {
-    return `file:///${normalized}`;
-  }
-
-  return `file://${normalized}`;
+  return btoa(binary);
 }
 
 /**
- * 将相对路径转换为 file:// URL，仅用于 DOM 渲染
- * BrowserWindow 已设置 webSecurity: false，可直接加载 file:// URL
+ * 将本地图片路径转换为 milkup:// URL，仅用于 DOM 渲染
  * 不修改 ProseMirror 模型的 attrs.src
  */
 function resolveImageSrc(src: string): string {
@@ -85,16 +73,14 @@ function resolveImageSrc(src: string): string {
   }
 
   if (isAbsoluteLocalPath(src)) {
-    return toFileUrl(src);
+    return `milkup:///absolute/${encodeBase64(src)}`;
   }
 
-  // 获取当前文件路径
   const currentFilePath = (window as any).__currentFilePath;
   if (!currentFilePath) return src;
 
-  // 解析为绝对路径并转为 file:// URL
-  const absolutePath = joinPath(dirname(currentFilePath), src);
-  return "file:///" + absolutePath;
+  const normalizedRelativePath = joinPath(".", src).replace(/^\.\//, "");
+  return `milkup:///${encodeBase64(currentFilePath)}/${encodeURIComponent(normalizedRelativePath)}`;
 }
 
 // 记录上一次光标位置，用于判断进入方向
@@ -665,8 +651,6 @@ export class ImageView implements NodeView {
     if (!node) return;
 
     const nodeStart = pos;
-    const nodeEnd = pos + node.nodeSize;
-
     // 只有 NodeSelection 选中此节点时才进入编辑模式
     const isSelected = selection instanceof NodeSelection && selection.from === pos;
 

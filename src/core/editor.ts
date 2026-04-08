@@ -6,7 +6,7 @@
 
 import { EditorState, Plugin, Transaction, Selection, TextSelection } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
-import { Schema, Node, Slice, Fragment } from "prosemirror-model";
+import { Schema, Node, Slice } from "prosemirror-model";
 import { history } from "prosemirror-history";
 import { dropCursor } from "prosemirror-dropcursor";
 import { gapCursor } from "prosemirror-gapcursor";
@@ -17,7 +17,7 @@ import { keymap } from "prosemirror-keymap";
 import "katex/dist/katex.min.css";
 
 import { milkupSchema } from "./schema";
-import { parseMarkdown, MarkdownParser } from "./parser";
+import { MarkdownParser } from "./parser";
 import { serializeMarkdown, MarkdownSerializer } from "./serializer";
 import { createInstantRenderPlugin } from "./plugins/instant-render";
 import { createInputRulesPlugin } from "./plugins/input-rules";
@@ -427,7 +427,6 @@ export class MilkupEditor implements IMilkupEditor {
     }
 
     // 检查是否点击在最后一个节点下方
-    const lastNodePos = doc.content.size - lastChild.nodeSize;
     const lastNodeEndPos = doc.content.size;
     const lastNodeCoords = view.coordsAtPos(lastNodeEndPos);
     if (clickY > lastNodeCoords.bottom) {
@@ -570,7 +569,7 @@ export class MilkupEditor implements IMilkupEditor {
 
     dom.addEventListener(
       "mouseup",
-      (e: Event) => {
+      (_e: Event) => {
         this.recordMouseupSelectionSnapshot();
         queueMicrotask(() => this.correctSelectionFromHiddenSyntaxMarker());
         setTimeout(() => this.correctSelectionFromHiddenSyntaxMarker(), 0);
@@ -1861,7 +1860,7 @@ export class MilkupEditor implements IMilkupEditor {
   /**
    * 执行命令
    */
-  command(name: string, ...args: any[]): boolean {
+  command(_name: string, ..._args: any[]): boolean {
     // 可以在这里添加自定义命令
     return false;
   }

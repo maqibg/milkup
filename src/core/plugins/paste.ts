@@ -5,7 +5,7 @@
  */
 
 import { Plugin, PluginKey } from "prosemirror-state";
-import { Node, Schema, Slice, Fragment } from "prosemirror-model";
+import { Node, Slice } from "prosemirror-model";
 import { MarkdownParser } from "../parser";
 import { milkupSchema } from "../schema";
 import { decorationPluginKey } from "../decorations";
@@ -81,7 +81,7 @@ export function createPastePlugin(config: PastePluginConfig = {}): Plugin {
     key: pastePluginKey,
 
     props: {
-      handlePaste(view, event, slice) {
+      handlePaste(view, event, _slice) {
         const clipboardData = event.clipboardData;
         if (!clipboardData) return false;
 

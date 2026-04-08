@@ -170,7 +170,6 @@ export default function useFile() {
     currentTab,
     hasUnsavedTabs,
     tabs,
-    openFile,
     getFileName,
     isFileAlreadyOpen,
   } = useTab();
