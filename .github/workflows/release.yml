@@ -3,8 +3,8 @@ name: Release
 on:
   push:
     tags:
-      - 'v*' # 当推送以 v 开头的标签时触发，如 v1.0.0
-      - 'Beta*' # 当推送以 Beta 开头的标签时触发，如 Beta-v1.0.0
+      - "v*" # 当推送以 v 开头的标签时触发，如 v1.0.0
+      - "Beta*" # 当推送以 Beta 开头的标签时触发，如 Beta-v1.0.0
 
 jobs:
   release:
@@ -37,7 +37,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -73,7 +73,7 @@ jobs:
       - name: Compress win-unpacked to zip
         if: matrix.platform == 'win'
         shell: pwsh
-        run: Compress-Archive -Path "dist/win-unpacked/*" -DestinationPath "dist/milkup-win-x64-unpacked.zip"
+        run: Compress-Archive -Path "dist/win-unpacked/*" -DestinationPath "dist/milkup-win-x64.zip"
 
       - name: Upload artifacts (macOS x64)
         if: matrix.platform == 'mac' && matrix.arch == 'x64'
@@ -105,7 +105,7 @@ jobs:
           path: |
             dist/milkup Setup *.exe
             dist/milkup Setup *.exe.blockmap
-            dist/milkup-win-x64-unpacked.zip
+            dist/milkup-win-x64.zip
             dist/latest.yml
           retention-days: 5
 
@@ -126,7 +126,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v2
@@ -218,6 +218,7 @@ jobs:
           else
             echo "No author mentions to fix"
           fi
+
 #      - name: Create Release
 #        uses: softprops/action-gh-release@v1
 #        with:
