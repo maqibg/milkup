@@ -545,7 +545,7 @@ defineExpose({
 </script>
 
 <template>
-  <div class="AIChatPanel" :class="{ open: props.open }">
+  <div class="AIChatPanel">
     <div class="panel-header">
       <div class="panel-title-box">
         <div class="panel-title">
@@ -774,18 +774,7 @@ defineExpose({
     linear-gradient(180deg, var(--background-color-1), var(--background-color-2));
   border-left: 1px solid var(--border-color-1);
   box-shadow: -16px 0 30px rgba(0, 0, 0, 0.08);
-  opacity: 0;
-  transform: translateX(18px) scale(0.985);
-  transition:
-    opacity 0.18s ease,
-    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: transform, opacity;
   overflow: hidden;
-}
-
-.AIChatPanel.open {
-  opacity: 1;
-  transform: translateX(0) scale(1);
 }
 
 .panel-header {
@@ -1375,10 +1364,6 @@ defineExpose({
 }
 
 @media (max-width: 1080px) {
-  .AIChatPanel {
-    transform: translateX(14px);
-  }
-
   .panel-messages {
     padding-inline: 12px;
   }
@@ -1393,7 +1378,6 @@ defineExpose({
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .AIChatPanel,
   .header-btn,
   .message-actions,
   .message-action-btn,

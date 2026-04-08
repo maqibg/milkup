@@ -335,7 +335,7 @@ const handleInstall = async () => {
 
 .editorArea {
   --outline-width: 25%;
-  --ai-panel-width: clamp(320px, 30vw, 380px);
+  --ai-panel-width: clamp(320px, 28vw, 360px);
   height: 0;
   flex: 1;
   display: flex;
@@ -366,19 +366,20 @@ const handleInstall = async () => {
   }
 
   .aiPanelBox {
-    position: relative;
-    flex: 0 0 0;
-    width: 0;
-    min-width: 0;
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: var(--ai-panel-width);
+    max-width: min(100%, var(--ai-panel-width));
     height: 100%;
-    overflow: hidden;
+    z-index: 12;
     opacity: 0;
     pointer-events: none;
     transition:
-      width 0.24s cubic-bezier(0.22, 1, 0.36, 1),
-      flex-basis 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
       opacity 0.18s ease;
-    will-change: width, flex-basis, opacity;
+    transform: translate3d(calc(100% + 12px), 0, 0);
+    will-change: transform, opacity;
   }
 
   // 打开动画：transform 滑入（GPU 加速，零重排）
@@ -449,8 +450,7 @@ const handleInstall = async () => {
 
   &.ai-open {
     .aiPanelBox {
-      flex-basis: var(--ai-panel-width);
-      width: var(--ai-panel-width);
+      transform: translate3d(0, 0, 0);
       opacity: 1;
       pointer-events: auto;
     }
