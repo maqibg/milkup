@@ -111,6 +111,10 @@ export function formatKeyForDisplay(key: string): string {
       if (part === "Mod") return isMac ? "Cmd" : "Ctrl";
       if (part === "Shift") return "Shift";
       if (part === "Alt") return isMac ? "Option" : "Alt";
+      if (part === "ArrowUp") return "↑";
+      if (part === "ArrowDown") return "↓";
+      if (part === "ArrowLeft") return "←";
+      if (part === "ArrowRight") return "→";
       if (part === "minus") return "-";
       if (part === "/") return "/";
       if (part === "`") return "`";

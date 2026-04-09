@@ -27,6 +27,14 @@ export type ShortcutActionId =
   | "toggleSourceView"
   | "toggleCompareView"
   | "triggerAICompletion"
+  | "selectNextOccurrence"
+  | "highlightAllOccurrences"
+  | "moveBlockUp"
+  | "moveBlockDown"
+  | "duplicateBlockUp"
+  | "duplicateBlockDown"
+  | "deleteCurrentBlock"
+  | "selectCurrentBlock"
   | "undo"
   | "redo";
 
