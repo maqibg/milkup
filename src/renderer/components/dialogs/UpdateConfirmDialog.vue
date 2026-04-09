@@ -5,6 +5,7 @@ import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkRehype from "remark-rehype";
 import rehypeStringify from "rehype-stringify";
+import { UPDATE_RELEASES_URL } from "@/renderer/services/api/update";
 
 interface Props {
   visible: boolean;
@@ -71,8 +72,7 @@ function openReleasePage() {
   if (updateInfo.value.releasePageUrl) {
     window.electronAPI.openExternal(updateInfo.value.releasePageUrl);
   } else {
-    // Fallback
-    window.electronAPI.openExternal("https://github.com/auto-plugin/milkup/releases");
+    window.electronAPI.openExternal(UPDATE_RELEASES_URL);
   }
 }
 

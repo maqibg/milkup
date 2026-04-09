@@ -15,6 +15,7 @@ import useTab from "@/renderer/hooks/useTab";
 import useTheme from "@/renderer/hooks/useTheme";
 import { useUpdateDialog } from "@/renderer/hooks/useUpdateDialog";
 import useWorkSpace from "@/renderer/hooks/useWorkSpace";
+import { scheduleAutoUpdateCheck } from "@/renderer/services/api/update";
 import { shouldAutoLoadWorkspace } from "@/renderer/utils/workspacePath";
 import AIChatPanel from "./components/ai/AIChatPanel.vue";
 import SaveConfirmDialog from "./components/dialogs/SaveConfirmDialog.vue";
@@ -105,9 +106,8 @@ const onUpdateAvailable = (payload: any) => {
     showUpdateDialog();
   }
 };
-
-// 监听主进程的更新可用事件 (Auto Update)
-window.electronAPI.on("update:available", onUpdateAvailable);
+let stopAutoUpdateCheck = () => {};
+let stopAutoCheckWatch = () => {};
 
 // 大纲侧边栏两阶段动画状态机
 // closed: 隐藏 | opening: transform 滑入动画 | open: flex 正常布局 | closing-prep: 切回 transform 定位 | closing: transform 滑出动画
@@ -202,11 +202,24 @@ onMounted(() => {
       }
     });
   }
+  stopAutoCheckWatch = watch(
+    () => config.value.updates?.autoCheckEnabled ?? true,
+    (enabled) => {
+      stopAutoUpdateCheck();
+      stopAutoUpdateCheck = scheduleAutoUpdateCheck({
+        enabled,
+        onAvailable: onUpdateAvailable,
+      });
+    },
+    { immediate: true }
+  );
   emitter.on("update:available", onUpdateAvailable);
   window.addEventListener("keydown", handleGlobalViewShortcut, true);
   window.addEventListener("milkup:ai-analysis", handleAIAnalysisSelection as EventListener);
 });
 onUnmounted(() => {
+  stopAutoUpdateCheck();
+  stopAutoCheckWatch();
   emitter.off("update:available", onUpdateAvailable);
   emitter.off("tab:close-confirm", handleTabCloseConfirm);
   window.removeEventListener("keydown", handleGlobalViewShortcut, true);

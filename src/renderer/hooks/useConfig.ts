@@ -27,6 +27,9 @@ interface AppConfig extends Record<string, any> {
     startupPath: string;
     autoExpandSidebar: boolean;
   };
+  updates: {
+    autoCheckEnabled: boolean;
+  };
 }
 
 const defaultConfig: AppConfig = {
@@ -49,6 +52,9 @@ const defaultConfig: AppConfig = {
     sortBy: "name",
     startupPath: "",
     autoExpandSidebar: false,
+  },
+  updates: {
+    autoCheckEnabled: true,
   },
 };
 
@@ -76,6 +82,10 @@ function mergeAppConfig(partial?: Partial<AppConfig>): AppConfig {
     workspace: {
       ...defaultConfig.workspace,
       ...partial?.workspace,
+    },
+    updates: {
+      ...defaultConfig.updates,
+      ...partial?.updates,
     },
   };
 }

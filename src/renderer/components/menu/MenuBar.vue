@@ -8,8 +8,6 @@ import Language from "@/renderer/components/settings/Language.vue";
 import SettingBase from "@/renderer/components/settings/SettingBase.vue";
 import ShortcutPage from "@/renderer/components/settings/ShortcutPage.vue";
 import AppIcon from "@/renderer/components/ui/AppIcon.vue";
-import emitter from "@/renderer/events";
-import { checkUpdate } from "@/renderer/services/api/update.js";
 
 const activeTab = ref<
   "settings" | "ai" | "about" | "appearance" | "file" | "language" | "shortcut"
@@ -57,11 +55,6 @@ const MenuOptions = [
   },
   { label: "关于", action: () => (activeTab.value = "about"), icon: "github", value: "about" },
 ];
-checkUpdate().then((updateInfo) => {
-  if (updateInfo) {
-    emitter.emit("update:available", updateInfo);
-  }
-});
 </script>
 
 <template>

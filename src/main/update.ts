@@ -5,6 +5,9 @@ import { getEditorWindows } from "./windowManager";
 
 import { createWriteStream } from "node:fs";
 
+const UPDATE_REPOSITORY = "maqibg/milkup";
+const UPDATE_RELEASES_API = `https://api.github.com/repos/${UPDATE_REPOSITORY}/releases/latest`;
+
 /**
  * 解析版本号字符串
  * 支持格式：
@@ -168,7 +171,15 @@ export function setupUpdateHandlers() {
       console.log("[Main] Starting update check...");
       broadcastToAll("update:status", { status: "checking" });
 
-      const api = "https://api.github.com/repos/auto-plugin/milkup/releases/latest";
+      if (process.platform !== "win32") {
+        broadcastToAll("update:status", {
+          status: "not-available",
+          info: { reason: "unsupported-platform" },
+        });
+        return null;
+      }
+
+      const api = UPDATE_RELEASES_API;
       console.log("[Main] Fetching from GitHub API:", api);
       const response = await net.fetch(api);
 
@@ -202,29 +213,7 @@ export function setupUpdateHandlers() {
           if (!asset) {
             asset = data.assets.find((a: any) => a.name.endsWith(ext));
           }
-        } else if (process.platform === "darwin") {
-          // macOS: 区分 arm64 和 x64
-          const arch = process.arch; // 'arm64' or 'x64'
-
-          // 1. 优先寻找包含当前架构名称的包 (如 milkup-1.0.0-arm64.dmg)
-          asset = data.assets.find((a: any) => a.name.endsWith(ext) && a.name.includes(arch));
-
-          if (!asset) {
-            // 2. 如果当前是 arm64，尝试寻找 universal (不含 arm64 也不含 x64, 或者含 universal)
-            //    或者实在找不到，允许回退到 x64 (Rosetta 转译)
-            if (arch === "arm64") {
-              asset =
-                data.assets.find((a: any) => a.name.endsWith(ext) && !a.name.includes("x64")) ||
-                data.assets.find((a: any) => a.name.endsWith(ext)); // Fallback to any dmg (likely x64)
-            } else {
-              // 3. 如果当前是 x64，坚决不能用 arm64
-              asset = data.assets.find(
-                (a: any) => a.name.endsWith(ext) && !a.name.includes("arm64")
-              );
-            }
-          }
         } else {
-          // Linux / Others
           asset = data.assets.find((a: any) => a.name.endsWith(ext));
         }
 
