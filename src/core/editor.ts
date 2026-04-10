@@ -1746,6 +1746,7 @@ export class MilkupEditor implements IMilkupEditor {
   private serializeSliceToMarkdown(slice: Slice): string {
     const fragment = slice.content;
     if (fragment.childCount === 0) return "";
+    const serializeOptions = { compact: true };
 
     // 检查是否全部为行内节点（段落内部分选区）
     let allInline = true;
@@ -1756,11 +1757,11 @@ export class MilkupEditor implements IMilkupEditor {
     if (allInline) {
       const para = this.schema.nodes.paragraph.create(null, fragment);
       const doc = this.schema.topNodeType.create(null, para);
-      return serializeMarkdown(doc).trim();
+      return serializeMarkdown(doc, serializeOptions).trim();
     }
 
     const doc = this.schema.topNodeType.create(null, fragment);
-    return serializeMarkdown(doc).trimEnd();
+    return serializeMarkdown(doc, serializeOptions).trimEnd();
   }
 
   /**
