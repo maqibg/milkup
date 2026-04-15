@@ -112,7 +112,9 @@ let stopAutoCheckWatch = () => {};
 // 大纲侧边栏两阶段动画状态机
 // closed: 隐藏 | opening: transform 滑入动画 | open: flex 正常布局 | closing-prep: 切回 transform 定位 | closing: transform 滑出动画
 type OutlineState = "closed" | "opening" | "open" | "closing-prep" | "closing";
-const outlineState = ref<OutlineState>(isShowOutline.value ? "open" : "closed");
+const initialOutlineVisible = Boolean(config.value.workspace?.autoExpandSidebar);
+toggleShowOutline(initialOutlineVisible);
+const outlineState = ref<OutlineState>(initialOutlineVisible ? "open" : "closed");
 const editorAreaRef = ref<HTMLElement | null>(null);
 const aiChatPanelRef = ref<InstanceType<typeof AIChatPanel> | null>(null);
 const isAIChatOpen = ref(false);
@@ -193,7 +195,6 @@ onMounted(() => {
   initFont();
   initOtherConfig();
   initSpellCheck();
-  toggleShowOutline(Boolean(config.value.workspace?.autoExpandSidebar));
   const startupPath = config.value.workspace?.startupPath;
   if (startupPath && shouldAutoLoadWorkspace(startupPath)) {
     window.electronAPI.workspaceExists(startupPath).then((exists) => {
