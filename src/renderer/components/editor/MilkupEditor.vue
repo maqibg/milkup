@@ -46,6 +46,7 @@ const scrollViewRef = ref<HTMLElement | null>(null);
 let editor: MilkupEditor | null = null;
 const lastEmittedValue = ref<string | null>(null);
 let isSourceViewToggling = false;
+let preservedSourceView = false;
 
 // isNewlyLoaded 归一化清理定时器
 let newlyLoadedTimer: ReturnType<typeof setTimeout> | null = null;
@@ -319,6 +320,7 @@ window.electronAPI.on?.("editor:redo", handleMenuRedo);
 // 处理编辑器重载事件（仅活跃编辑器响应）
 function handleEditorReload() {
   if (!props.isActive || !containerRef.value) return;
+  preservedSourceView = editor?.isSourceViewEnabled() ?? false;
   editor?.destroy();
   editor = null;
   // 清空容器

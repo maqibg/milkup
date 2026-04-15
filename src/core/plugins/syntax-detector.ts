@@ -1076,6 +1076,27 @@ export function createSyntaxDetectorPlugin(): Plugin {
           if (node.isTextblock && !node.type.spec.code) {
             const textContent = node.textContent;
             const basePos = pos + 1;
+            const consecutiveImages = parseConsecutiveImages(textContent);
+
+            if (consecutiveImages && node.type.name === "paragraph") {
+              const imageNodeType = schema.nodes.image;
+              if (imageNodeType) {
+                const groupId = generateConsecutiveImageGroupId();
+                const imageNodes = consecutiveImages.map((img) =>
+                  imageNodeType.create({
+                    src: img.src,
+                    alt: img.alt,
+                    title: img.title,
+                    linkHref: img.linkHref,
+                    linkTitle: img.linkTitle,
+                    consecutiveGroup: groupId,
+                  })
+                );
+                tr = tr.replaceWith(pos, pos + node.nodeSize, imageNodes);
+                hasChanges = true;
+                return false;
+              }
+            }
 
             // 记录已处理的范围，避免链接图片和普通图片重复匹配
             const processedRanges: Array<{ start: number; end: number }> = [];
