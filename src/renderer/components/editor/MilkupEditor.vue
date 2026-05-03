@@ -6,7 +6,7 @@
  */
 import type { Tab } from "@/types/tab";
 import type { EditorViewMode } from "@/types/tab";
-import { ref, onMounted, onUnmounted, watch, nextTick } from "vue";
+import { computed, ref, onMounted, onUnmounted, watch, nextTick } from "vue";
 import {
   MilkupEditor,
   createMilkupEditor,
@@ -20,6 +20,8 @@ import { uploadImage } from "@/renderer/services/api";
 import { AIService } from "@/renderer/services/ai";
 import { useAIConfig } from "@/renderer/hooks/useAIConfig";
 import { useConfig } from "@/renderer/hooks/useConfig";
+import useUiLoading from "@/renderer/hooks/useUiLoading";
+import LoadingIcon from "@/renderer/components/ui/LoadingIcon.vue";
 import emitter from "@/renderer/events";
 import "@/core/styles/milkup.css";
 import { normalizeMarkdownForDirtyCheck } from "@/renderer/utils/markdown";
@@ -32,8 +34,12 @@ interface Props {
 
 const props = defineProps<Props>();
 
+const LARGE_DOCUMENT_CHAR_THRESHOLD = 200_000;
+const LARGE_DOCUMENT_LINE_THRESHOLD = 4_000;
+
 const { config: aiConfig, isEnabled: aiEnabled } = useAIConfig();
 const { config: appConfig, watchConf } = useConfig();
+const { nextFrame } = useUiLoading();
 
 // 初始化 mermaid 默认显示模式
 setGlobalMermaidDefaultMode(appConfig.value.mermaid?.defaultDisplayMode || "diagram");
@@ -43,6 +49,35 @@ watchConf("mermaid", (val) => {
 
 const containerRef = ref<HTMLElement | null>(null);
 const scrollViewRef = ref<HTMLElement | null>(null);
+const isEditorInitializing = ref(false);
+const isLargeDocument = computed(() => {
+  const content = props.tab.content || "";
+  if (content.length >= LARGE_DOCUMENT_CHAR_THRESHOLD) return true;
+
+  let lineCount = 1;
+  for (let index = 0; index < content.length; index++) {
+    if (content.charCodeAt(index) === 10) {
+      lineCount++;
+      if (lineCount >= LARGE_DOCUMENT_LINE_THRESHOLD) return true;
+    }
+  }
+
+  return false;
+});
+
+function isLargeMarkdown(content: string): boolean {
+  if (content.length >= LARGE_DOCUMENT_CHAR_THRESHOLD) return true;
+
+  let lineCount = 1;
+  for (let index = 0; index < content.length; index++) {
+    if (content.charCodeAt(index) === 10) {
+      lineCount++;
+      if (lineCount >= LARGE_DOCUMENT_LINE_THRESHOLD) return true;
+    }
+  }
+
+  return false;
+}
 let editor: MilkupEditor | null = null;
 const lastEmittedValue = ref<string | null>(null);
 let isSourceViewToggling = false;
@@ -254,35 +289,62 @@ function createEditorInstance() {
 
 function syncEditorFromTab(content: string) {
   if (!editor) return;
+  const shouldShowLoading = props.isActive && isLargeMarkdown(content);
+  if (shouldShowLoading) {
+    isEditorInitializing.value = true;
+  }
 
-  requestAnimationFrame(() => {
+  requestAnimationFrame(async () => {
     if (props.isActive) {
       (window as any).__currentFilePath = props.tab.filePath || null;
     }
 
-    const contentForRendering = preprocessContent(content);
-    editor?.setMarkdown(contentForRendering);
-
-    nextTick(() => {
-      if (scrollViewRef.value) {
-        const scrollRatio = props.tab.scrollRatio ?? 0;
-        const targetScrollTop =
-          scrollRatio * (scrollViewRef.value.scrollHeight - scrollViewRef.value.clientHeight);
-        scrollViewRef.value.scrollTop = targetScrollTop;
+    try {
+      if (shouldShowLoading) {
+        await nextFrame();
       }
-    });
+
+      const contentForRendering = preprocessContent(content);
+      editor?.setMarkdown(contentForRendering);
+
+      nextTick(() => {
+        if (scrollViewRef.value) {
+          const scrollRatio = props.tab.scrollRatio ?? 0;
+          const targetScrollTop =
+            scrollRatio * (scrollViewRef.value.scrollHeight - scrollViewRef.value.clientHeight);
+          scrollViewRef.value.scrollTop = targetScrollTop;
+        }
+      });
+    } finally {
+      if (shouldShowLoading) {
+        await nextFrame();
+        isEditorInitializing.value = false;
+      }
+    }
   });
 }
 
 onMounted(async () => {
   if (!containerRef.value) return;
   await nextTick();
-  createEditorInstance();
+  if (isLargeDocument.value && props.isActive) {
+    isEditorInitializing.value = true;
+    await nextFrame();
+  }
+  try {
+    createEditorInstance();
+  } finally {
+    if (isEditorInitializing.value) {
+      await nextFrame();
+      isEditorInitializing.value = false;
+    }
+  }
 });
 
 onUnmounted(() => {
   editor?.destroy();
   editor = null;
+  isEditorInitializing.value = false;
   if (newlyLoadedTimer) clearTimeout(newlyLoadedTimer);
   if (outlineTimer) clearTimeout(outlineTimer);
   emitter.off("outline:scrollTo", handleOutlineScrollTo);
@@ -318,7 +380,7 @@ window.electronAPI.on?.("editor:undo", handleMenuUndo);
 window.electronAPI.on?.("editor:redo", handleMenuRedo);
 
 // 处理编辑器重载事件（仅活跃编辑器响应）
-function handleEditorReload() {
+async function handleEditorReload() {
   if (!props.isActive || !containerRef.value) return;
   preservedSourceView = editor?.isSourceViewEnabled() ?? false;
   editor?.destroy();
@@ -327,7 +389,18 @@ function handleEditorReload() {
   if (containerRef.value) {
     containerRef.value.innerHTML = "";
   }
-  createEditorInstance();
+  if (isLargeDocument.value) {
+    isEditorInitializing.value = true;
+    await nextFrame();
+  }
+  try {
+    createEditorInstance();
+  } finally {
+    if (isEditorInitializing.value) {
+      await nextFrame();
+      isEditorInitializing.value = false;
+    }
+  }
 }
 emitter.on("editor:reload", handleEditorReload);
 
@@ -408,11 +481,18 @@ defineExpose({
 <template>
   <div
     class="editor-box milkup-editor-instance"
+    :class="{ 'large-document-mode': isLargeDocument }"
     :data-tab-id="tab.id"
     :data-active="isActive ? 'true' : 'false'"
   >
     <div ref="scrollViewRef" class="scrollView milkup" @scroll="updateScrollRatio">
       <div ref="containerRef" class="milkup-container"></div>
+    </div>
+    <div v-if="isEditorInitializing" class="editor-loading-overlay">
+      <div class="editor-loading-card">
+        <LoadingIcon class="editor-loading-icon" />
+        <span>正在加载大文件...</span>
+      </div>
     </div>
   </div>
 </template>
@@ -423,6 +503,7 @@ defineExpose({
   height: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
 
   .scrollView {
     flex: 1;
@@ -435,6 +516,60 @@ defineExpose({
     min-height: 100%;
     display: flex;
     flex-direction: column;
+  }
+
+  .editor-loading-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: color-mix(in srgb, var(--background-color-1) 72%, rgba(0, 0, 0, 0.16));
+    backdrop-filter: blur(2px);
+    pointer-events: none;
+  }
+
+  .editor-loading-card {
+    padding: 14px 18px;
+    border: 1px solid var(--border-color-1);
+    border-radius: 10px;
+    background: var(--background-color-1);
+    color: var(--text-color-1);
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.18);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+  }
+
+  .editor-loading-icon {
+    color: var(--primary-color);
+    font-size: 20px;
+  }
+
+  &.large-document-mode {
+    :deep(.milkup-editor > p),
+    :deep(.milkup-editor > h1),
+    :deep(.milkup-editor > h2),
+    :deep(.milkup-editor > h3),
+    :deep(.milkup-editor > h4),
+    :deep(.milkup-editor > h5),
+    :deep(.milkup-editor > h6),
+    :deep(.milkup-editor > blockquote),
+    :deep(.milkup-editor > ul),
+    :deep(.milkup-editor > ol),
+    :deep(.milkup-editor > table),
+    :deep(.milkup-editor > hr),
+    :deep(.milkup-editor > .milkup-code-block),
+    :deep(.milkup-editor > .milkup-image-block),
+    :deep(.milkup-editor > .html-block),
+    :deep(.milkup-editor > .math-block),
+    :deep(.milkup-editor li),
+    :deep(.milkup-editor blockquote > *) {
+      content-visibility: auto;
+      contain-intrinsic-size: auto 36px;
+    }
   }
 }
 </style>
