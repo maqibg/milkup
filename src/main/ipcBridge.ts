@@ -303,6 +303,7 @@ function buildImagePreviewHtml(payload: {
       showImage(currentIndex + offset);
     }
 
+
     window.addEventListener("wheel", (event) => {
       event.preventDefault();
       const delta = event.deltaY < 0 ? 1.12 : 1 / 1.12;
