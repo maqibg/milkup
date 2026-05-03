@@ -1,8 +1,7 @@
-function dirname(filePath: string): string {
-  const sep = filePath.includes("\\") ? "\\" : "/";
-  const lastIndex = filePath.lastIndexOf(sep);
-  return lastIndex === -1 ? "." : filePath.substring(0, lastIndex);
-}
+/**
+ * 图片路径工具函数
+ * 使用 milkup:// 协议 + base64 编码方案
+ */
 
 function joinPath(dir: string, relative: string): string {
   const sep = dir.includes("\\") ? "\\" : "/";
@@ -27,23 +26,26 @@ function isAbsoluteLocalPath(src: string): boolean {
   return src.startsWith("/");
 }
 
-function toFileUrl(src: string): string {
-  const normalized = src.replace(/\\/g, "/");
+function encodeBase64(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
 
-  if (/^\/\/[^/]/.test(normalized)) {
-    return `file:${normalized}`;
+  const CHUNK_SIZE = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK_SIZE));
   }
 
-  if (/^[a-z]:\//i.test(normalized)) {
-    return `file:///${normalized}`;
-  }
-
-  return `file://${normalized}`;
+  return btoa(binary);
 }
 
+/**
+ * 将本地图片路径转换为 milkup:// URL，仅用于 DOM 渲染
+ * 不修改 ProseMirror 模型的 attrs.src
+ */
 export function resolveImageSrc(src: string): string {
   if (!src) return src;
 
+  // 跳过已知协议和绝对路径
   if (
     src.startsWith("http://") ||
     src.startsWith("https://") ||
@@ -55,12 +57,12 @@ export function resolveImageSrc(src: string): string {
   }
 
   if (isAbsoluteLocalPath(src)) {
-    return toFileUrl(src);
+    return `milkup:///absolute/${encodeBase64(src)}`;
   }
 
   const currentFilePath = (window as any).__currentFilePath;
   if (!currentFilePath) return src;
 
-  const absolutePath = joinPath(dirname(currentFilePath), src);
-  return "file:///" + absolutePath;
+  const normalizedRelativePath = joinPath(".", src).replace(/^\.\//, "");
+  return `milkup:///${encodeBase64(currentFilePath)}/${encodeURIComponent(normalizedRelativePath)}`;
 }
