@@ -411,8 +411,16 @@ function createImageFileName(fileName?: string, mimeType?: string): string {
 
 function resolveImageSaveDirectory(
   configuredPath: string,
-  currentFilePath?: string | null
+  currentFilePath?: string | null,
+  useFileNameFolder = false
 ): { absoluteDir: string; isRelative: boolean } {
+  if (useFileNameFolder && currentFilePath) {
+    return {
+      absoluteDir: path.resolve(path.dirname(currentFilePath), path.basename(currentFilePath)),
+      isRelative: true,
+    };
+  }
+
   const normalizedPath = (configuredPath || "/assets").trim();
 
   if (isAbsoluteImageDirectory(normalizedPath)) {
@@ -536,9 +544,14 @@ function replaceMarkdownImageSources(
 function prepareImageContentForSave(
   content: string,
   targetFilePath: string,
-  imageLocalPath: string
+  imageLocalPath: string,
+  useFileNameFolder = false
 ): string {
-  const { absoluteDir, isRelative } = resolveImageSaveDirectory(imageLocalPath, targetFilePath);
+  const { absoluteDir, isRelative } = resolveImageSaveDirectory(
+    imageLocalPath,
+    targetFilePath,
+    useFileNameFolder
+  );
 
   if (!isRelative) {
     return content;
@@ -778,11 +791,13 @@ export function registerIpcHandleHandlers() {
         content,
         fileTraits,
         imageLocalPath,
+        imageUseFileNameFolder,
       }: {
         filePath: string | null;
         content: string;
         fileTraits?: FileTraits;
         imageLocalPath?: string;
+        imageUseFileNameFolder?: boolean;
       }
     ) => {
       const parentWin = BrowserWindow.fromWebContents(event.sender);
@@ -797,7 +812,8 @@ export function registerIpcHandleHandlers() {
       const preparedContent = prepareImageContentForSave(
         content,
         filePath,
-        imageLocalPath || "/assets"
+        imageLocalPath || "/assets",
+        Boolean(imageUseFileNameFolder)
       );
       // 根据原始文件格式特征还原内容
       const restoredContent = restoreFileTraits(preparedContent, fileTraits);
@@ -814,7 +830,13 @@ export function registerIpcHandleHandlers() {
         content,
         fileTraits,
         imageLocalPath,
-      }: { content: string; fileTraits?: FileTraits; imageLocalPath?: string }
+        imageUseFileNameFolder,
+      }: {
+        content: string;
+        fileTraits?: FileTraits;
+        imageLocalPath?: string;
+        imageUseFileNameFolder?: boolean;
+      }
     ) => {
       const parentWin = BrowserWindow.fromWebContents(event.sender);
       if (!parentWin) return null;
@@ -825,7 +847,8 @@ export function registerIpcHandleHandlers() {
       const preparedContent = prepareImageContentForSave(
         content,
         filePath,
-        imageLocalPath || "/assets"
+        imageLocalPath || "/assets",
+        Boolean(imageUseFileNameFolder)
       );
       const restoredContent = restoreFileTraits(preparedContent, fileTraits);
       fs.writeFileSync(filePath, restoredContent, "utf-8");
@@ -1327,10 +1350,15 @@ export function registerGlobalIpcHandlers() {
         currentFilePath?: string | null;
         fileName?: string;
         mimeType?: string;
+        useFileNameFolder?: boolean;
       }
     ) => {
-      const { file, targetPath, currentFilePath, fileName, mimeType } = payload;
-      const { absoluteDir, isRelative } = resolveImageSaveDirectory(targetPath, currentFilePath);
+      const { file, targetPath, currentFilePath, fileName, mimeType, useFileNameFolder } = payload;
+      const { absoluteDir, isRelative } = resolveImageSaveDirectory(
+        targetPath,
+        currentFilePath,
+        Boolean(useFileNameFolder)
+      );
 
       if (!fs.existsSync(absoluteDir)) {
         fs.mkdirSync(absoluteDir, { recursive: true });
@@ -1342,6 +1370,25 @@ export function registerGlobalIpcHandlers() {
       return resolveImageMarkdownPath(outputFilePath, isRelative, currentFilePath);
     }
   );
+  ipcMain.handle("dialog:showImageUnsavedChoice", async (event) => {
+    const parentWin = BrowserWindow.fromWebContents(event.sender);
+    if (!parentWin) return "cancel";
+
+    const result = await dialog.showMessageBox(parentWin, {
+      type: "question",
+      title: "保存文件后再插入图片？",
+      message: "当前文档尚未保存，无法创建文件同名图片文件夹。",
+      detail: "你可以先保存当前 Markdown 文件，或临时使用现有本地路径设置保存图片。",
+      buttons: ["保存文件", "使用现有路径", "取消"],
+      defaultId: 0,
+      cancelId: 2,
+      noLink: true,
+    });
+
+    if (result.response === 0) return "save";
+    if (result.response === 1) return "fallback";
+    return "cancel";
+  });
   // 获取系统字体列表
   ipcMain.handle("get-system-fonts", async () => {
     try {
