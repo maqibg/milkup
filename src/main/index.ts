@@ -278,23 +278,24 @@ app.whenReady().then(async () => {
     }
   });
 
-  await createWindow();
-
   // 设置 Chrome 风格的 User-Agent，避免部分图片 CDN 拒绝 Electron 默认 UA
-  if (win && !win.isDestroyed()) {
-    const session = win.webContents.session;
-    const defaultUA = session.getUserAgent();
+  // 使用默认 session，在窗口创建前设置确保对所有请求生效
+  const defaultSession = require("electron").session.defaultSession;
+  if (defaultSession) {
+    const defaultUA = defaultSession.getUserAgent();
     const chromeUA = defaultUA.replace(/Electron\/[\d.]+\s*/, "").replace(/\s*milkup\/[\d.]+/, "");
-    session.setUserAgent(chromeUA);
+    defaultSession.setUserAgent(chromeUA);
 
     // 移除 Referer 头，避免图片 CDN 因 Referer 检查而拒绝服务
-    session.webRequest.onBeforeSendHeaders((details, callback) => {
+    defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
       const headers = { ...details.requestHeaders };
       delete headers.Referer;
       delete headers.referer;
       callback({ requestHeaders: headers });
     });
   }
+
+  await createWindow();
 
   sendLaunchFileIfExists();
 });
