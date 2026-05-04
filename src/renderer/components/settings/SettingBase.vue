@@ -2,6 +2,7 @@
 import AppIcon from "@/renderer/components/ui/AppIcon.vue";
 import AISetting from "./AISetting.vue";
 import AutoSaveSetting from "./AutoSaveSetting.vue";
+import AutoPairSetting from "./AutoPairSetting.vue";
 import ImageConfig from "./ImageConfig.vue";
 import SpellCheckSetter from "./SpellCheckSetter.vue";
 import WorkspaceSetting from "./WorkspaceSetting.vue";
@@ -12,6 +13,12 @@ const settingSections = [
     desc: "控制编辑器保存等基础行为",
     icon: "document",
     component: AutoSaveSetting,
+  },
+  {
+    title: "输入补全",
+    desc: "控制括号、引号和 Markdown 符号的自动补全",
+    icon: "keyboard",
+    component: AutoPairSetting,
   },
   {
     title: "拼写检查",

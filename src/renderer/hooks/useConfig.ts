@@ -1,5 +1,7 @@
 import type { FontConfig, FontSizeConfig } from "@/types/font";
 import type { ImagePasteMethod, ShortcutKeyMap } from "@/core";
+
+export type LocalPathMode = "current" | "assets" | "filename-assets" | "custom";
 import { useStorage } from "@vueuse/core";
 import { readonly, watch } from "vue";
 
@@ -13,12 +15,15 @@ interface AppConfig extends Record<string, any> {
   };
   image: {
     pasteMethod: ImagePasteMethod;
-    localPath: string;
-    useFileNameFolder: boolean;
+    localPathMode: LocalPathMode;
+    customLocalPath: string;
   };
   other: {
     editorPadding: string;
     autoSave: boolean;
+    autoSaveDelay: number;
+    matchBrackets: boolean;
+    matchMarkdown: boolean;
   };
   mermaid: {
     defaultDisplayMode: "code" | "mixed" | "diagram";
@@ -41,12 +46,15 @@ const defaultConfig: AppConfig = {
   },
   image: {
     pasteMethod: "local",
-    localPath: "/assets",
-    useFileNameFolder: false,
+    localPathMode: "assets",
+    customLocalPath: "",
   },
   other: {
     editorPadding: "120px",
     autoSave: false,
+    autoSaveDelay: 5,
+    matchBrackets: true,
+    matchMarkdown: true,
   },
   mermaid: {
     defaultDisplayMode: "diagram",
@@ -100,11 +108,11 @@ function getLegacyImageConfig(): AppConfig["image"] {
 
   return {
     pasteMethod:
-      pasteMethod === "local" || pasteMethod === "base64" || pasteMethod === "remote"
+      pasteMethod === "local" || pasteMethod === "base64"
         ? pasteMethod
         : defaultConfig.image.pasteMethod,
-    localPath: localPath || defaultConfig.image.localPath,
-    useFileNameFolder: defaultConfig.image.useFileNameFolder,
+    localPathMode: defaultConfig.image.localPathMode,
+    customLocalPath: localPath || defaultConfig.image.customLocalPath,
   };
 }
 

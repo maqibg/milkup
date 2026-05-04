@@ -63,6 +63,8 @@ export function resolveImageSrc(src: string): string {
   const currentFilePath = (window as any).__currentFilePath;
   if (!currentFilePath) return src;
 
-  const normalizedRelativePath = joinPath(".", src).replace(/^\.\//, "");
+  // 先解码 %20 为空格，避免 preprocessContent 的编码被双重转义
+  const decodedSrc = src.replace(/%20/g, " ");
+  const normalizedRelativePath = joinPath(".", decodedSrc).replace(/^\.\//, "");
   return `milkup:///${encodeBase64(currentFilePath)}/${encodeURIComponent(normalizedRelativePath)}`;
 }

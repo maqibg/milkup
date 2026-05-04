@@ -15,7 +15,6 @@ import {
   setGlobalMermaidDefaultMode,
 } from "@/core";
 import { undo, redo } from "prosemirror-history";
-import { uploadImage } from "@/renderer/services/api";
 import { AIService } from "@/renderer/services/ai";
 import { useAIConfig } from "@/renderer/hooks/useAIConfig";
 import { useConfig } from "@/renderer/hooks/useConfig";
@@ -86,26 +85,23 @@ async function saveImageWithCurrentConfig(file: File): Promise<string> {
   const imageConfig = appConfig.value.image;
   const currentMarkdown = editor?.getMarkdown() ?? props.tab.content ?? "";
 
-  if (!imageConfig.useFileNameFolder) {
-    return writeImageFile(file, false);
-  }
-
-  if (!props.tab.filePath) {
+  // filename-assets 模式需要文件已保存
+  if (imageConfig.localPathMode === "filename-assets" && !props.tab.filePath) {
     const choice = await window.electronAPI.showImageUnsavedChoice();
     if (choice === "cancel") {
       throw new Error("用户取消插入图片");
     }
 
     if (choice === "fallback") {
-      return writeImageFile(file, false);
+      return writeImageFile(file, "assets");
     }
 
     const saved = await window.electronAPI.saveFile(
       props.tab.filePath,
       currentMarkdown,
       props.tab.fileTraits,
-      imageConfig.localPath,
-      imageConfig.useFileNameFolder
+      imageConfig.localPathMode,
+      imageConfig.customLocalPath
     );
 
     if (!saved) {
@@ -121,21 +117,21 @@ async function saveImageWithCurrentConfig(file: File): Promise<string> {
     emitter.emit("file:Change");
   }
 
-  return writeImageFile(file, true);
+  return writeImageFile(file, imageConfig.localPathMode);
 }
 
-async function writeImageFile(file: File, useFileNameFolder: boolean): Promise<string> {
+async function writeImageFile(file: File, localPathMode: string): Promise<string> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = new Uint8Array(arrayBuffer);
   const imageConfig = appConfig.value.image;
   const currentFilePath = props.tab.filePath || (window as any).__currentFilePath || null;
   const imagePath = await window.electronAPI.writeTempImage(
     buffer,
-    imageConfig.localPath,
+    localPathMode,
     currentFilePath,
     file.name,
     file.type,
-    useFileNameFolder
+    imageConfig.customLocalPath
   );
 
   if (!imagePath) {
@@ -267,9 +263,6 @@ function createEditorInstance() {
     placeholder: "写点什么吧...",
     pasteConfig: {
       getImagePasteMethod,
-      imageUploader: async (file: File) => {
-        return await uploadImage(file);
-      },
       localImageSaver: async (file: File) => {
         return await saveImageWithCurrentConfig(file);
       },

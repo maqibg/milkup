@@ -37,6 +37,8 @@ export {
 
 export { createInputRulesPlugin } from "./plugins/input-rules";
 
+export { createAutoPairPlugin } from "./plugins/auto-pair";
+
 export { createSyntaxFixerPlugin, syntaxFixerPluginKey } from "./plugins/syntax-fixer";
 
 export { createHeadingSyncPlugin, headingSyncPluginKey } from "./plugins/heading-sync";
@@ -47,10 +49,9 @@ export {
   createPastePlugin,
   pastePluginKey,
   getImagePasteMethod,
-  getLocalImagePath,
+  getLocalPathMode,
   saveImageLocally,
   type ImagePasteMethod,
-  type ImageUploader,
   type LocalImageSaver,
   type PastePluginConfig,
 } from "./plugins/paste";

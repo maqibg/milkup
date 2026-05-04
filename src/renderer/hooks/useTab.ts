@@ -285,8 +285,8 @@ async function saveTab(tab: Tab): Promise<boolean> {
       tab.filePath,
       tab.content,
       toRaw(tab.fileTraits),
-      config.value.image.localPath,
-      config.value.image.useFileNameFolder
+      config.value.image.localPathMode,
+      config.value.image.customLocalPath
     );
     if (saved) {
       const fileContent = await readAndProcessFile({
@@ -327,6 +327,8 @@ function clearAutoSaveTimer(tabId: string) {
 
 function scheduleAutoSave(tab: Tab) {
   clearAutoSaveTimer(tab.id);
+  const { config } = useConfig();
+  const delayMs = Math.max(1, config.value.other.autoSaveDelay || 5) * 1000;
 
   autoSaveTimers.set(
     tab.id,
@@ -353,7 +355,7 @@ function scheduleAutoSave(tab: Tab) {
       } finally {
         autoSavingTabs.delete(latestTab.id);
       }
-    }, 800)
+    }, delayMs)
   );
 }
 

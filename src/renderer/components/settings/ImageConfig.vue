@@ -1,57 +1,54 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useConfig } from "@/renderer/hooks/useConfig";
-import UploadConfig from "./UploadConfig.vue";
+import type { LocalPathMode } from "@/renderer/hooks/useConfig";
 
-type PasteMethod = "local" | "base64" | "remote";
+type PasteMethod = "local" | "base64";
 
 const { config, setConf } = useConfig();
 
 const pasteMethod = computed<PasteMethod>(() => config.value.image.pasteMethod);
-const useFileNameFolder = computed(() => config.value.image.useFileNameFolder);
-const localPath = computed<string>({
-  get: () => config.value.image.localPath,
+const localPathMode = computed<LocalPathMode>(() => config.value.image.localPathMode);
+const customLocalPath = computed<string>({
+  get: () => config.value.image.customLocalPath,
   set: (value) => {
-    setConf("image", "localPath", value);
+    setConf("image", "customLocalPath", value);
   },
 });
-
-function isAbsoluteLocalPath(pathValue: string): boolean {
-  if (!pathValue) return false;
-
-  if (window.electronAPI.platform === "win32") {
-    return /^[a-zA-Z]:[\\/]/.test(pathValue) || /^\\\\[^\\]/.test(pathValue);
-  }
-
-  return pathValue.startsWith("/");
-}
 
 function handleChangePasteMethod(method: PasteMethod) {
   setConf("image", "pasteMethod", method);
 }
 
-function handleChangeLocalPath() {
-  setConf("image", "localPath", localPath.value?.trim() || "/assets");
+function handleChangeLocalPathMode(mode: LocalPathMode) {
+  setConf("image", "localPathMode", mode);
 }
 
-function toggleUseFileNameFolder() {
-  setConf("image", "useFileNameFolder", !useFileNameFolder.value);
+function handleCustomPathChange() {
+  setConf("image", "customLocalPath", customLocalPath.value?.trim() || "");
+}
+
+function isAbsoluteLocalPath(pathValue: string): boolean {
+  if (!pathValue) return false;
+  if (window.electronAPI.platform === "win32") {
+    return /^[a-zA-Z]:[\\/]/.test(pathValue) || /^\\\\[^\\]/.test(pathValue);
+  }
+  return pathValue.startsWith("/");
 }
 
 async function handleSelectDirectory() {
-  if (useFileNameFolder.value) return;
-  const defaultPath = isAbsoluteLocalPath(localPath.value) ? localPath.value : undefined;
+  const defaultPath = isAbsoluteLocalPath(customLocalPath.value)
+    ? customLocalPath.value
+    : undefined;
   const result = await window.electronAPI.showOpenDialog({
     properties: ["openDirectory", "createDirectory"],
     defaultPath,
   });
 
-  if (!result || result.canceled || result.filePaths.length === 0) {
-    return;
-  }
+  if (!result || result.canceled || result.filePaths.length === 0) return;
 
-  localPath.value = result.filePaths[0];
-  handleChangeLocalPath();
+  customLocalPath.value = result.filePaths[0];
+  handleCustomPathChange();
 }
 </script>
 
@@ -62,12 +59,7 @@ async function handleSelectDirectory() {
         <div
           class="slider-thumb"
           :style="{
-            transform:
-              pasteMethod === 'local'
-                ? 'translateX(0)'
-                : pasteMethod === 'base64'
-                  ? 'translateX(calc(100% + 4px))'
-                  : 'translateX(calc(200% + 8px))',
+            transform: pasteMethod === 'local' ? 'translateX(0)' : 'translateX(calc(100% + 4px))',
           }"
         />
         <div
@@ -84,55 +76,55 @@ async function handleSelectDirectory() {
         >
           <span>转为 Base64</span>
         </div>
-        <div
-          class="option-item"
-          :class="{ active: pasteMethod === 'remote' }"
-          @click="handleChangePasteMethod('remote')"
-        >
-          <span>上传</span>
-        </div>
       </div>
     </div>
     <div class="details">
+      <!-- 本地文件设置 -->
       <div v-if="pasteMethod === 'local'" class="local-path-panel">
-        <div class="path-input-container">
-          <span class="input-label">本地文件路径</span>
-          <div class="path-input-group">
-            <button
-              type="button"
-              class="file-name-folder-btn"
-              :class="{ active: useFileNameFolder }"
-              @click="toggleUseFileNameFolder"
-            >
-              文件同名文件夹
-            </button>
-            <input
-              v-model="localPath"
-              type="text"
-              placeholder="/assets"
-              :disabled="useFileNameFolder"
-              @change="handleChangeLocalPath"
-            />
-            <button
-              type="button"
-              class="path-picker-btn"
-              :disabled="useFileNameFolder"
-              @click="handleSelectDirectory"
-            >
-              选择位置
-            </button>
+        <div class="radio-group">
+          <div class="radio-item" @click="handleChangeLocalPathMode('assets')">
+            <span class="radio-dot" :class="{ checked: localPathMode === 'assets' }" />
+            <span class="radio-label">复制图片到 ./assets 文件夹</span>
           </div>
+          <div class="radio-item" @click="handleChangeLocalPathMode('current')">
+            <span class="radio-dot" :class="{ checked: localPathMode === 'current' }" />
+            <span class="radio-label">复制图片到当前文件夹 (./)</span>
+          </div>
+          <div class="radio-item" @click="handleChangeLocalPathMode('filename-assets')">
+            <span class="radio-dot" :class="{ checked: localPathMode === 'filename-assets' }" />
+            <span class="radio-label">复制图片到 ./${filename}.assets 文件夹</span>
+          </div>
+          <div class="radio-item" @click="handleChangeLocalPathMode('custom')">
+            <span class="radio-dot" :class="{ checked: localPathMode === 'custom' }" />
+            <span class="radio-label">复制到指定路径</span>
+          </div>
+        </div>
+        <div v-if="localPathMode === 'custom'" class="custom-path-row">
+          <input
+            v-model="customLocalPath"
+            type="text"
+            placeholder="请输入绝对路径，如 D:\images"
+            @change="handleCustomPathChange"
+          />
+          <button type="button" class="path-picker-btn" @click="handleSelectDirectory">
+            选择位置
+          </button>
         </div>
         <div class="path-hint">
           {{
-            useFileNameFolder
-              ? "开启后会使用完整 Markdown 文件名创建同名文件夹，例如 demo.md/image.png。未保存文件首次粘贴图片时会询问处理方式。"
-              : "相对路径基于当前 Markdown 文件目录，例如 `/assets` 会保存到当前文件目录下的 `assets` 文件夹；绝对路径会直接保存到指定目录。"
+            localPathMode === "current"
+              ? "图片将保存到 Markdown 文件所在的同一目录下。"
+              : localPathMode === "assets"
+                ? "图片将保存到 Markdown 文件所在目录下的 assets 文件夹。"
+                : localPathMode === "filename-assets"
+                  ? "图片将保存到与 Markdown 文件同名的 .assets 文件夹，例如 demo.md 的图片保存到 demo.assets/。"
+                  : "图片将保存到指定的绝对路径目录。"
           }}
         </div>
       </div>
+
+      <!-- Base64 说明 -->
       <div v-if="pasteMethod === 'base64'">图片将自动转为 base64（可能会增大文件体积）</div>
-      <UploadConfig v-if="pasteMethod === 'remote'" />
     </div>
   </div>
 </template>
@@ -161,40 +153,80 @@ async function handleSelectDirectory() {
   }
 
   .local-path-panel {
-    .path-input-container {
+    .radio-group {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+
+      .radio-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        padding: 2px 0;
+
+        .radio-dot {
+          width: 14px;
+          height: 14px;
+          border-radius: 50%;
+          border: 2px solid var(--border-color-1);
+          flex-shrink: 0;
+          position: relative;
+          transition: border-color 0.2s;
+
+          &.checked {
+            border-color: var(--primary-color);
+
+            &::after {
+              content: "";
+              position: absolute;
+              top: 2px;
+              left: 2px;
+              width: 6px;
+              height: 6px;
+              border-radius: 50%;
+              background: var(--primary-color);
+            }
+          }
+        }
+
+        .radio-label {
+          font-size: 13px;
+          color: var(--text-color-1);
+        }
+
+        &:hover .radio-dot {
+          border-color: var(--primary-color);
+        }
+      }
+    }
+
+    .custom-path-row {
       width: 100%;
       display: flex;
       align-items: center;
       gap: 10px;
-      white-space: nowrap;
-
-      .input-label {
-        min-width: 100px;
-        display: inline-block;
-      }
-
-      .path-input-group {
-        width: 100%;
-        display: flex;
-        align-items: center;
-        gap: 10px;
-      }
+      padding-left: 22px;
 
       input {
         width: 100%;
-        height: 40px;
+        height: 36px;
         border: 1px solid var(--border-color-1);
         border-radius: 4px;
         outline: none;
         background-color: var(--background-color-1);
         color: var(--text-color-1);
         padding: 0 10px;
-        font-size: 14px;
+        font-size: 13px;
+
+        &:focus {
+          border-color: var(--primary-color);
+        }
       }
 
-      .file-name-folder-btn,
       .path-picker-btn {
-        height: 40px;
+        height: 36px;
         padding: 0 14px;
         border: 1px solid var(--border-color-1);
         border-radius: 4px;
@@ -202,32 +234,24 @@ async function handleSelectDirectory() {
         color: var(--text-color-1);
         cursor: pointer;
         flex-shrink: 0;
+        font-size: 12px;
         transition:
           background-color 0.2s,
           border-color 0.2s,
-          color 0.2s,
-          opacity 0.2s;
-      }
+          color 0.2s;
 
-      .file-name-folder-btn.active {
-        border-color: var(--primary-color);
-        background: var(--primary-color);
-        color: #fff;
-      }
-
-      input:disabled,
-      button:disabled {
-        cursor: not-allowed;
-        opacity: 0.55;
+        &:hover {
+          border-color: var(--primary-color);
+        }
       }
     }
+  }
 
-    .path-hint {
-      color: var(--text-color-2);
-      font-size: 12px;
-      line-height: 1.6;
-      white-space: normal;
-    }
+  .path-hint {
+    color: var(--text-color-2);
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: normal;
   }
 
   .options {

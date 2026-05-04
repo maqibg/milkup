@@ -15,15 +15,13 @@ import { insertMarkdownTableRowAfterCurrent } from "../commands";
 export const pastePluginKey = new PluginKey("milkup-paste");
 
 /** 图片粘贴方式 */
-export type ImagePasteMethod = "base64" | "local" | "remote";
+export type ImagePasteMethod = "base64" | "local";
 
 interface StoredImageConfig {
   pasteMethod?: ImagePasteMethod;
-  localPath?: string;
+  localPathMode?: string;
+  customLocalPath?: string;
 }
-
-/** 图片上传函数类型 */
-export type ImageUploader = (file: File) => Promise<string>;
 
 /** 本地图片保存函数类型 */
 export type LocalImageSaver = (file: File) => Promise<string>;
@@ -32,25 +30,24 @@ export type LocalImageSaver = (file: File) => Promise<string>;
 export interface PastePluginConfig {
   /** 获取图片粘贴方式 */
   getImagePasteMethod?: () => ImagePasteMethod;
-  /** 图片上传函数（用于 remote 模式） */
-  imageUploader?: ImageUploader;
   /** 本地图片保存函数（用于 local 模式） */
   localImageSaver?: LocalImageSaver;
 }
 
 /** 获取图片粘贴方式 */
 export function getImagePasteMethod(): ImagePasteMethod {
-  const method = getStoredImageConfig().pasteMethod || localStorage.getItem("pasteMethod");
-  if (method === "local" || method === "base64" || method === "remote") {
+  const imageConfig = getStoredImageConfig();
+  const method = imageConfig.pasteMethod || localStorage.getItem("pasteMethod");
+
+  if (method === "local" || method === "base64") {
     return method;
   }
   return "local";
 }
 
-/** 获取本地图片保存路径 */
-export function getLocalImagePath(): string {
-  const localPath = getStoredImageConfig().localPath || localStorage.getItem("localImagePath");
-  return localPath || "/assets";
+/** 获取本地图片保存模式 */
+export function getLocalPathMode(): string {
+  return getStoredImageConfig().localPathMode || "assets";
 }
 
 function getStoredImageConfig(): StoredImageConfig {
@@ -191,20 +188,10 @@ async function handleImagePaste(
           src = await fileToBase64(file);
           break;
 
-        case "remote":
-          if (config.imageUploader) {
-            src = await config.imageUploader(file);
-          } else {
-            console.warn("Image uploader not configured, falling back to base64");
-            src = await fileToBase64(file);
-          }
-          break;
-
         case "local":
           if (config.localImageSaver) {
             src = await config.localImageSaver(file);
           } else {
-            // 尝试使用 Electron API
             src = await saveImageLocally(file);
           }
           break;
@@ -261,13 +248,6 @@ async function handleImagePasteAsText(
         case "base64":
           src = await fileToBase64(file);
           break;
-        case "remote":
-          if (config.imageUploader) {
-            src = await config.imageUploader(file);
-          } else {
-            src = await fileToBase64(file);
-          }
-          break;
         case "local":
           if (config.localImageSaver) {
             src = await config.localImageSaver(file);
@@ -318,11 +298,11 @@ export async function saveImageLocally(file: File): Promise<string> {
     // 将图片保存到临时目录
     const arrayBuffer = await file.arrayBuffer();
     const buffer = new Uint8Array(arrayBuffer);
-    const localImagePath = getLocalImagePath();
+    const localPathMode = getLocalPathMode();
     const currentFilePath = (window as any).__currentFilePath || null;
     const tempPath = await electronAPI.writeTempImage?.(
       buffer,
-      localImagePath,
+      localPathMode,
       currentFilePath,
       file.name,
       file.type

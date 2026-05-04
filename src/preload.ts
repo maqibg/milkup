@@ -11,27 +11,27 @@ contextBridge.exposeInMainWorld("electronAPI", {
     filePath: string | null,
     content: string,
     fileTraits?: any,
-    imageLocalPath?: string,
-    imageUseFileNameFolder?: boolean
+    imageLocalPathMode?: string,
+    imageCustomLocalPath?: string
   ) =>
     ipcRenderer.invoke("dialog:saveFile", {
       filePath,
       content,
       fileTraits,
-      imageLocalPath,
-      imageUseFileNameFolder,
+      imageLocalPathMode,
+      imageCustomLocalPath,
     }),
   saveFileAs: (
     content: string,
     fileTraits?: any,
-    imageLocalPath?: string,
-    imageUseFileNameFolder?: boolean
+    imageLocalPathMode?: string,
+    imageCustomLocalPath?: string
   ) =>
     ipcRenderer.invoke("dialog:saveFileAs", {
       content,
       fileTraits,
-      imageLocalPath,
-      imageUseFileNameFolder,
+      imageLocalPathMode,
+      imageCustomLocalPath,
     }),
   on: (channel: string, listener: (...args: any[]) => void) => {
     const wrapper = (_event: any, ...args: any[]) => listener(...args);
@@ -70,20 +70,22 @@ contextBridge.exposeInMainWorld("electronAPI", {
   getFilePathInClipboard: () => ipcRenderer.invoke("clipboard:getFilePath"),
   writeTempImage: (
     file: Uint8Array,
-    targetPath: string,
+    localPathMode: string,
     currentFilePath?: string | null,
     fileName?: string,
     mimeType?: string,
-    useFileNameFolder?: boolean
+    customLocalPath?: string
   ) =>
     ipcRenderer.invoke("clipboard:writeTempImage", {
       file,
-      targetPath,
+      localPathMode,
       currentFilePath,
       fileName,
       mimeType,
-      useFileNameFolder,
+      customLocalPath,
     }),
+  copyImageToClipboard: (imageSrc: string, currentFilePath?: string | null) =>
+    ipcRenderer.invoke("clipboard:copyImage", imageSrc, currentFilePath),
   showImageUnsavedChoice: () => ipcRenderer.invoke("dialog:showImageUnsavedChoice"),
   // 导出为 PDF
   exportAsPDF: (elementSelector: string, outputName: string, options?: ExportPDFOptions) =>

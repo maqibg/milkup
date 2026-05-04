@@ -13,14 +13,14 @@ interface Window {
       filePath: string | null,
       content: string,
       fileTraits?: FileTraitsDTO,
-      imageLocalPath?: string,
-      imageUseFileNameFolder?: boolean
+      imageLocalPathMode?: string,
+      imageCustomLocalPath?: string
     ) => Promise<{ filePath: string; content: string } | null>;
     saveFileAs: (
       content: string,
       fileTraits?: FileTraitsDTO,
-      imageLocalPath?: string,
-      imageUseFileNameFolder?: boolean
+      imageLocalPathMode?: string,
+      imageCustomLocalPath?: string
     ) => Promise<{ filePath: string; content: string } | null>;
     setTitle: (filePath: string | null) => void;
     changeSaveStatus: (isSaved: boolean) => void;
@@ -41,13 +41,14 @@ interface Window {
     getFilePathInClipboard: () => Promise<string | null>;
     writeTempImage: (
       file: Uint8Array<ArrayBuffer>,
-      targetPath: string,
+      localPathMode: string,
       currentFilePath?: string | null,
       fileName?: string,
       mimeType?: string,
-      useFileNameFolder?: boolean
+      customLocalPath?: string
     ) => Promise<string>;
     showImageUnsavedChoice: () => Promise<"save" | "fallback" | "cancel">;
+    copyImageToClipboard: (imageSrc: string, currentFilePath?: string | null) => Promise<boolean>;
     // 图片路径解析
     resolveImagePath: (markdownFilePath: string, imagePath: string) => Promise<string>;
     // 导出为 PDF

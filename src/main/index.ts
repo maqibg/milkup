@@ -82,6 +82,7 @@ async function createWindow() {
     await win.loadFile(indexPath);
   }
 
+  // 开发模式自动打开 DevTools
   if (process.env.VITE_DEV_SERVER_URL) {
     win.webContents.openDevTools();
   }

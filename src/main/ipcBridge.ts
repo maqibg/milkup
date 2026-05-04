@@ -10,7 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import chokidar from "chokidar";
 import { Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
-import { app, BrowserWindow, clipboard, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, clipboard, dialog, ipcMain, nativeImage, net, shell } from "electron";
 import { getFonts } from "font-list";
 import { restoreFileTraits } from "./fileFormat";
 import { createThemeEditorWindow } from "./index";
@@ -410,33 +410,66 @@ function createImageFileName(fileName?: string, mimeType?: string): string {
 }
 
 function resolveImageSaveDirectory(
-  configuredPath: string,
+  localPathMode: string,
   currentFilePath?: string | null,
-  useFileNameFolder = false
+  customLocalPath?: string
 ): { absoluteDir: string; isRelative: boolean } {
-  if (useFileNameFolder && currentFilePath) {
-    return {
-      absoluteDir: path.resolve(path.dirname(currentFilePath), path.basename(currentFilePath)),
-      isRelative: true,
-    };
-  }
-
-  const normalizedPath = (configuredPath || "/assets").trim();
-
-  if (isAbsoluteImageDirectory(normalizedPath)) {
-    return {
-      absoluteDir: normalizedPath,
-      isRelative: false,
-    };
-  }
-
-  const relativeDir = normalizeRelativeImageDirectory(normalizedPath) || "assets";
   const baseDir = currentFilePath ? path.dirname(currentFilePath) : app.getPath("userData");
 
-  return {
-    absoluteDir: path.resolve(baseDir, relativeDir),
-    isRelative: true,
-  };
+  switch (localPathMode) {
+    case "current":
+      return {
+        absoluteDir: baseDir,
+        isRelative: !!currentFilePath,
+      };
+
+    case "assets":
+      return {
+        absoluteDir: path.resolve(baseDir, "assets"),
+        isRelative: !!currentFilePath,
+      };
+
+    case "filename-assets": {
+      if (!currentFilePath) {
+        return {
+          absoluteDir: path.resolve(baseDir, "assets"),
+          isRelative: true,
+        };
+      }
+      const baseName = path.basename(currentFilePath, path.extname(currentFilePath));
+      return {
+        absoluteDir: path.resolve(baseDir, `${baseName}.assets`),
+        isRelative: true,
+      };
+    }
+
+    case "custom": {
+      const normalizedPath = (customLocalPath || "").trim();
+      if (!normalizedPath) {
+        return {
+          absoluteDir: path.resolve(baseDir, "assets"),
+          isRelative: !!currentFilePath,
+        };
+      }
+      if (isAbsoluteImageDirectory(normalizedPath)) {
+        return {
+          absoluteDir: normalizedPath,
+          isRelative: false,
+        };
+      }
+      const relativeDir = normalizeRelativeImageDirectory(normalizedPath) || "assets";
+      return {
+        absoluteDir: path.resolve(baseDir, relativeDir),
+        isRelative: !!currentFilePath,
+      };
+    }
+
+    default:
+      return {
+        absoluteDir: path.resolve(baseDir, "assets"),
+        isRelative: !!currentFilePath,
+      };
+  }
 }
 
 function resolveImageMarkdownPath(
@@ -544,13 +577,13 @@ function replaceMarkdownImageSources(
 function prepareImageContentForSave(
   content: string,
   targetFilePath: string,
-  imageLocalPath: string,
-  useFileNameFolder = false
+  localPathMode: string,
+  customLocalPath?: string
 ): string {
   const { absoluteDir, isRelative } = resolveImageSaveDirectory(
-    imageLocalPath,
+    localPathMode,
     targetFilePath,
-    useFileNameFolder
+    customLocalPath
   );
 
   if (!isRelative) {
@@ -790,14 +823,14 @@ export function registerIpcHandleHandlers() {
         filePath,
         content,
         fileTraits,
-        imageLocalPath,
-        imageUseFileNameFolder,
+        imageLocalPathMode,
+        imageCustomLocalPath,
       }: {
         filePath: string | null;
         content: string;
         fileTraits?: FileTraits;
-        imageLocalPath?: string;
-        imageUseFileNameFolder?: boolean;
+        imageLocalPathMode?: string;
+        imageCustomLocalPath?: string;
       }
     ) => {
       const parentWin = BrowserWindow.fromWebContents(event.sender);
@@ -812,8 +845,8 @@ export function registerIpcHandleHandlers() {
       const preparedContent = prepareImageContentForSave(
         content,
         filePath,
-        imageLocalPath || "/assets",
-        Boolean(imageUseFileNameFolder)
+        imageLocalPathMode || "assets",
+        imageCustomLocalPath
       );
       // 根据原始文件格式特征还原内容
       const restoredContent = restoreFileTraits(preparedContent, fileTraits);
@@ -829,13 +862,13 @@ export function registerIpcHandleHandlers() {
       {
         content,
         fileTraits,
-        imageLocalPath,
-        imageUseFileNameFolder,
+        imageLocalPathMode,
+        imageCustomLocalPath,
       }: {
         content: string;
         fileTraits?: FileTraits;
-        imageLocalPath?: string;
-        imageUseFileNameFolder?: boolean;
+        imageLocalPathMode?: string;
+        imageCustomLocalPath?: string;
       }
     ) => {
       const parentWin = BrowserWindow.fromWebContents(event.sender);
@@ -847,8 +880,8 @@ export function registerIpcHandleHandlers() {
       const preparedContent = prepareImageContentForSave(
         content,
         filePath,
-        imageLocalPath || "/assets",
-        Boolean(imageUseFileNameFolder)
+        imageLocalPathMode || "assets",
+        imageCustomLocalPath
       );
       const restoredContent = restoreFileTraits(preparedContent, fileTraits);
       fs.writeFileSync(filePath, restoredContent, "utf-8");
@@ -1346,18 +1379,18 @@ export function registerGlobalIpcHandlers() {
       _event,
       payload: {
         file: Uint8Array<ArrayBuffer>;
-        targetPath: string;
+        localPathMode: string;
         currentFilePath?: string | null;
         fileName?: string;
         mimeType?: string;
-        useFileNameFolder?: boolean;
+        customLocalPath?: string;
       }
     ) => {
-      const { file, targetPath, currentFilePath, fileName, mimeType, useFileNameFolder } = payload;
+      const { file, localPathMode, currentFilePath, fileName, mimeType, customLocalPath } = payload;
       const { absoluteDir, isRelative } = resolveImageSaveDirectory(
-        targetPath,
+        localPathMode,
         currentFilePath,
-        Boolean(useFileNameFolder)
+        customLocalPath
       );
 
       if (!fs.existsSync(absoluteDir)) {
@@ -1368,6 +1401,98 @@ export function registerGlobalIpcHandlers() {
       fs.writeFileSync(outputFilePath, file);
 
       return resolveImageMarkdownPath(outputFilePath, isRelative, currentFilePath);
+    }
+  );
+  // 复制图片到系统剪贴板
+  ipcMain.handle(
+    "clipboard:copyImage",
+    async (_event, imageSrc: string, currentFilePath?: string | null) => {
+      try {
+        let filePath = "";
+
+        // data: URL (base64 图片)
+        if (imageSrc.startsWith("data:")) {
+          const base64Match = imageSrc.match(/^data:image\/\w+;base64,(.+)$/);
+          if (base64Match) {
+            const imageBuffer = Buffer.from(base64Match[1], "base64");
+            const image = nativeImage.createFromBuffer(imageBuffer);
+            if (!image.isEmpty()) {
+              clipboard.writeImage(image);
+              return true;
+            }
+          }
+          return false;
+        }
+
+        // HTTP/HTTPS 图床图片
+        if (imageSrc.startsWith("http://") || imageSrc.startsWith("https://")) {
+          try {
+            const response = await net.fetch(imageSrc);
+            const arrayBuffer = await response.arrayBuffer();
+            const imageBuffer = Buffer.from(arrayBuffer);
+            const image = nativeImage.createFromBuffer(imageBuffer);
+            if (!image.isEmpty()) {
+              clipboard.writeImage(image);
+              return true;
+            }
+          } catch (fetchError) {
+            console.error("[copyImage] fetch remote image failed:", fetchError);
+          }
+          return false;
+        }
+
+        // milkup:// 协议
+        if (imageSrc.startsWith("milkup:///absolute/")) {
+          const base64Path = imageSrc.replace("milkup:///absolute/", "");
+          filePath = Buffer.from(base64Path, "base64").toString("utf-8");
+        } else if (imageSrc.startsWith("milkup:///")) {
+          const parts = imageSrc.replace("milkup:///", "").split("/");
+          if (parts.length >= 2) {
+            const base64FilePath = parts[0];
+            const relativePath = decodeURIComponent(parts.slice(1).join("/"));
+            const currentFileDir = path.dirname(
+              Buffer.from(base64FilePath, "base64").toString("utf-8")
+            );
+            filePath = path.join(currentFileDir, relativePath);
+          }
+        } else if (path.isAbsolute(imageSrc)) {
+          // 绝对路径
+          filePath = imageSrc;
+        } else {
+          // 相对路径：尝试多个基准目录
+          const cleanSrc = imageSrc.replace(/^\.[/\\]/, "").replace(/%20/g, " ");
+          const candidates = [];
+          if (currentFilePath) {
+            candidates.push(path.resolve(path.dirname(currentFilePath), cleanSrc));
+          }
+          const userDataDir = app.getPath("userData");
+          candidates.push(path.resolve(userDataDir, cleanSrc));
+          candidates.push(path.resolve(userDataDir, "assets", cleanSrc));
+          for (const candidate of candidates) {
+            if (fs.existsSync(candidate)) {
+              filePath = candidate;
+              break;
+            }
+          }
+          if (!filePath && candidates.length > 0) {
+            filePath = candidates[0];
+          }
+        }
+
+        // 读取图片文件并写入剪贴板
+        if (filePath && fs.existsSync(filePath)) {
+          const imageBuffer = fs.readFileSync(filePath);
+          const image = nativeImage.createFromBuffer(imageBuffer);
+          if (!image.isEmpty()) {
+            clipboard.writeImage(image);
+            return true;
+          }
+        }
+        return false;
+      } catch (error) {
+        console.error("复制图片到剪贴板失败:", error);
+        return false;
+      }
     }
   );
   ipcMain.handle("dialog:showImageUnsavedChoice", async (event) => {
@@ -1697,6 +1822,7 @@ export function registerGlobalIpcHandlers() {
     }
   );
 }
+
 export function close(win: Electron.BrowserWindow) {
   // 如果窗口已销毁或已在关闭流程中，跳过
   if (win.isDestroyed() || windowClosingSet.has(win.id)) return;

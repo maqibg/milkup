@@ -4,7 +4,14 @@
  * 整合所有模块，提供统一的编辑器 API
  */
 
-import { EditorState, Plugin, Transaction, Selection, TextSelection } from "prosemirror-state";
+import {
+  EditorState,
+  Plugin,
+  Transaction,
+  Selection,
+  TextSelection,
+  NodeSelection,
+} from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
 import { Schema, Node, Slice } from "prosemirror-model";
 import { history } from "prosemirror-history";
@@ -21,6 +28,7 @@ import { MarkdownParser } from "./parser";
 import { serializeMarkdown, MarkdownSerializer } from "./serializer";
 import { createInstantRenderPlugin } from "./plugins/instant-render";
 import { createInputRulesPlugin } from "./plugins/input-rules";
+import { createAutoPairPlugin } from "./plugins/auto-pair";
 import { createSyntaxFixerPlugin } from "./plugins/syntax-fixer";
 import { createSyntaxDetectorPlugin } from "./plugins/syntax-detector";
 import { createHeadingSyncPlugin } from "./plugins/heading-sync";
@@ -85,6 +93,7 @@ import {
 } from "./commands";
 import { DEFAULT_SHORTCUTS, buildActionCommandMap } from "./keymap";
 import type { ShortcutActionId } from "./keymap";
+import { resolveImageSrc } from "./utils/image-path";
 
 /**
  * 将 ProseMirror 快捷键格式转为显示文本
@@ -190,6 +199,7 @@ export class MilkupEditor implements IMilkupEditor {
       handleClick: (view, pos, event) => this.handleEditorClick(view, pos, event),
       handleDOMEvents: {
         contextmenu: (view, event) => this.handleContextMenu(view, event),
+        keydown: (view, event) => this.handleKeyDown(view, event),
       },
     });
 
@@ -238,6 +248,8 @@ export class MilkupEditor implements IMilkupEditor {
       keymap(baseKeymap),
       // 即时渲染插件
       ...createInstantRenderPlugin(),
+      // 自动配对（括号、引号、Markdown 分隔符）
+      createAutoPairPlugin(),
       // 输入规则
       createInputRulesPlugin(this.schema),
       // 语法修复插件
@@ -736,6 +748,22 @@ export class MilkupEditor implements IMilkupEditor {
   }
 
   /**
+   * 处理键盘事件（在 ProseMirror 之前拦截）
+   */
+  private handleKeyDown(_view: EditorView, event: KeyboardEvent): boolean {
+    const mod = event.metaKey || event.ctrlKey;
+    if (mod && event.key === "c") {
+      const selectedImage = this.getSelectedImageNode();
+      if (selectedImage) {
+        event.preventDefault();
+        this.copyImageToClipboard(selectedImage.src);
+        return true; // 阻止 ProseMirror 处理
+      }
+    }
+    return false; // 让 ProseMirror 处理其他按键
+  }
+
+  /**
    * 处理右键菜单
    */
   private handleContextMenu(view: EditorView, event: MouseEvent): boolean {
@@ -746,6 +774,35 @@ export class MilkupEditor implements IMilkupEditor {
       target.closest(".milkup-code-block-header")
     ) {
       return false; // 让代码块处理
+    }
+
+    // 检查是否点击在图片上，如果是则选中该图片
+    const imageBlock = target.closest(".milkup-image-block");
+    if (imageBlock) {
+      // 通过 DOM 查找图片节点在文档中的位置
+      const editorDom = view.dom;
+      const imageBlocks = editorDom.querySelectorAll(".milkup-image-block");
+      for (let i = 0; i < imageBlocks.length; i++) {
+        if (imageBlocks[i] === imageBlock || imageBlocks[i].contains(imageBlock)) {
+          // 遍历文档找到第 i 个图片节点
+          let imageIndex = 0;
+          let found = false;
+          view.state.doc.descendants((node, pos) => {
+            if (found) return false;
+            if (node.type.name === "image") {
+              if (imageIndex === i) {
+                const selection = NodeSelection.create(view.state.doc, pos);
+                view.dispatch(view.state.tr.setSelection(selection));
+                found = true;
+                return false;
+              }
+              imageIndex++;
+            }
+            return true;
+          });
+          break;
+        }
+      }
     }
 
     event.preventDefault();
@@ -920,6 +977,79 @@ export class MilkupEditor implements IMilkupEditor {
   }
 
   /**
+   * 检查当前选区是否是图片节点
+   */
+  private getSelectedImageNode(): { node: Node; src: string } | null {
+    const { selection } = this.view.state;
+    if (selection instanceof NodeSelection && selection.node.type.name === "image") {
+      return { node: selection.node, src: selection.node.attrs.src };
+    }
+    return null;
+  }
+
+  /**
+   * 通过 DOM 事件检测图片节点
+   */
+  private getImageNodeFromEvent(e: MouseEvent): { node: Node; src: string } | null {
+    const target = e.target as HTMLElement;
+    const imageBlock = target.closest(".milkup-image-block");
+    if (!imageBlock) return null;
+
+    // 通过 DOM 查找图片节点在文档中的位置
+    const editorDom = this.view.dom;
+    const imageBlocks = editorDom.querySelectorAll(".milkup-image-block");
+    for (let i = 0; i < imageBlocks.length; i++) {
+      if (imageBlocks[i] === imageBlock || imageBlocks[i].contains(imageBlock)) {
+        // 遍历文档找到第 i 个图片节点
+        let imageIndex = 0;
+        let result: { node: Node; src: string } | null = null;
+        this.view.state.doc.descendants((node, pos) => {
+          if (result) return false;
+          if (node.type.name === "image") {
+            if (imageIndex === i) {
+              result = { node, src: node.attrs.src };
+              return false;
+            }
+            imageIndex++;
+          }
+          return true;
+        });
+        return result;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * 复制图片到剪贴板
+   */
+  private async copyImageToClipboard(src: string): Promise<void> {
+    try {
+      if ((window as any).electronAPI?.copyImageToClipboard) {
+        const currentFilePath = (window as any).__currentFilePath || null;
+        const success = await (window as any).electronAPI.copyImageToClipboard(
+          src,
+          currentFilePath
+        );
+        if (!success) {
+          // 回退：复制图片路径
+          await navigator.clipboard.writeText(src);
+        }
+      } else {
+        // 非 Electron 环境，尝试 fetch
+        const resolvedSrc = resolveImageSrc(src);
+        const response = await fetch(resolvedSrc);
+        const blob = await response.blob();
+        await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      }
+    } catch (error) {
+      console.error("复制图片失败:", error);
+      // 回退：复制图片路径
+      await navigator.clipboard.writeText(src);
+    }
+  }
+
+  /**
    * 显示右键菜单
    */
   private async showContextMenu(e: MouseEvent): Promise<void> {
@@ -951,25 +1081,42 @@ export class MilkupEditor implements IMilkupEditor {
     // 异步操作后编辑器可能已被销毁（如 HMR），直接返回
     if (this._destroyed) return;
 
-    // 复制
-    const copyItem = this.createContextMenuItem("复制", !hasSelection, () => {
-      const slice = this.view.state.selection.content();
-      const text = this.serializeSliceToMarkdown(slice);
-      navigator.clipboard.writeText(text);
-      this.hideContextMenu();
-    });
-    menu.appendChild(copyItem);
+    // 检查是否选中了图片（优先检查选区，其次检查点击位置）
+    const selectedImage = this.getSelectedImageNode() || this.getImageNodeFromEvent(e);
 
-    // 剪切
-    const cutItem = this.createContextMenuItem("剪切", !hasSelection, () => {
-      const slice = this.view.state.selection.content();
-      const text = this.serializeSliceToMarkdown(slice);
-      navigator.clipboard.writeText(text);
-      const tr = this.view.state.tr.deleteSelection();
-      this.view.dispatch(tr);
-      this.hideContextMenu();
-    });
-    menu.appendChild(cutItem);
+    if (selectedImage) {
+      // 图片选中时：显示复制图片和复制路径
+      const copyImageItem = this.createContextMenuItem("复制图片", false, async () => {
+        await this.copyImageToClipboard(selectedImage.src);
+        this.hideContextMenu();
+      });
+      menu.appendChild(copyImageItem);
+
+      const copyPathItem = this.createContextMenuItem("复制路径", false, () => {
+        navigator.clipboard.writeText(selectedImage.src);
+        this.hideContextMenu();
+      });
+      menu.appendChild(copyPathItem);
+    } else {
+      // 普通文本：显示复制和剪切
+      const copyItem = this.createContextMenuItem("复制", !hasSelection, () => {
+        const slice = this.view.state.selection.content();
+        const text = this.serializeSliceToMarkdown(slice);
+        navigator.clipboard.writeText(text);
+        this.hideContextMenu();
+      });
+      menu.appendChild(copyItem);
+
+      const cutItem = this.createContextMenuItem("剪切", !hasSelection, () => {
+        const slice = this.view.state.selection.content();
+        const text = this.serializeSliceToMarkdown(slice);
+        navigator.clipboard.writeText(text);
+        const tr = this.view.state.tr.deleteSelection();
+        this.view.dispatch(tr);
+        this.hideContextMenu();
+      });
+      menu.appendChild(cutItem);
+    }
 
     // 粘贴 - 使用 Clipboard API 读取内容并手动处理
     const pasteItem = this.createContextMenuItem("粘贴", !hasClipboardContent, async () => {
@@ -1688,20 +1835,10 @@ export class MilkupEditor implements IMilkupEditor {
           src = await fileToBase64(file);
           break;
 
-        case "remote":
-          if (this.config.pasteConfig?.imageUploader) {
-            src = await this.config.pasteConfig.imageUploader(file);
-          } else {
-            console.warn("Image uploader not configured, falling back to base64");
-            src = await fileToBase64(file);
-          }
-          break;
-
         case "local":
           if (this.config.pasteConfig?.localImageSaver) {
             src = await this.config.pasteConfig.localImageSaver(file);
           } else {
-            // 尝试使用 Electron API
             src = await saveImageLocally(file);
           }
           break;
