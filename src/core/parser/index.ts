@@ -83,7 +83,7 @@ const INLINE_SYNTAXES: InlineSyntax[] = [
   },
   {
     type: "link",
-    pattern: /(?<!!)\[([^\]]+)\]\(((?:[^)\s\\]|\\.)+)(?:\s+"([^"]*)")?\)/g,
+    pattern: /(?<!!)\[([^\]]+)\]\(([^)\s]+(?:\)[^)\s]+)*)(?:\s+"([^"]*)")?\)/g,
     prefix: "[",
     suffix: (m: RegExpExecArray) => `](${m[2]}${m[3] ? ` "${m[3]}"` : ""})`,
     contentIndex: 1,
@@ -141,16 +141,18 @@ const BLOCK_PATTERNS = {
   math_block_start: /^\s*\$\$\s*$/, // 多行数学块开始（支持缩进）
   math_block_end: /^\s*\$\$\s*$/, // 多行数学块结束（支持缩进）
   math_block_inline: /^\s*\$\$(.+)\$\$\s*$/, // 单行数学块 $$content$$（支持缩进）
-  image: /^!\[([^\]]*)\]\((.+?)(?:\s+"([^"]*)")?\)\s*$/, // 图片 ![alt](src "title") - 允许 URL 中有空格
-  linked_image: /^\[!\[([^\]]*)\]\((.+?)(?:\s+"([^"]*)")?\)\]\((.+?)(?:\s+"([^"]*)")?\)\s*$/, // 链接图片 [![alt](src)](href)
+  image: /^!\[([^\]]*)\]\(([^)\s]+(?:\)[^)\s]+)*)(?:\s+"([^"]*)")?\)\s*$/, // 图片 ![alt](src "title") - 支持 URL 中的括号
+  linked_image:
+    /^\[!\[([^\]]*)\]\(([^)\s]+(?:\)[^)\s]+)*)(?:\s+"([^"]*)")?\)\]\(([^)\s]+(?:\)[^)\s]+)*)(?:\s+"([^"]*)")?\)\s*$/, // 链接图片 [![alt](src)](href)
   container_start: /^:::(\w+)(?:\s+(.*))?$/,
   container_end: /^:::\s*$/, // 允许行尾有空格
   html_block_start: /^<([a-zA-Z][a-zA-Z0-9]*)/, // 以 < 开头后跟标签名
 };
 
 const IMAGE_TOKEN_PATTERNS = {
-  linked: /\[!\[([^\]]*)\]\((.+?)(?:\s+"([^"]*)")?\)\]\((.+?)(?:\s+"([^"]*)")?\)/y,
-  normal: /!\[([^\]]*)\]\((.+?)(?:\s+"([^"]*)")?\)/y,
+  linked:
+    /\[!\[([^\]]*)\]\(([^)\s]+(?:\)[^)\s]+)*)(?:\s+"([^"]*)")?\)\]\(([^)\s]+(?:\)[^)\s]+)*)(?:\s+"([^"]*)")?\)/y,
+  normal: /!\[([^\]]*)\]\(([^)\s]+(?:\)[^)\s]+)*)(?:\s+"([^"]*)")?\)/y,
 };
 
 function generateConsecutiveImageGroupId(): string {
@@ -228,8 +230,9 @@ export class MarkdownParser {
 
     while (i < lines.length) {
       const line = lines[i];
+      const trimmedLine = line.trim();
 
-      if (line.trim() === "") {
+      if (trimmedLine === "") {
         // 统计连续空行数量
         let emptyCount = 0;
         while (i < lines.length && lines[i].trim() === "") {
@@ -286,7 +289,7 @@ export class MarkdownParser {
       }
 
       // 标题
-      const headingMatch = line.match(BLOCK_PATTERNS.heading);
+      const headingMatch = trimmedLine.match(BLOCK_PATTERNS.heading);
       if (headingMatch) {
         blocks.push(this.parseHeading(headingMatch));
         i++;
@@ -294,7 +297,7 @@ export class MarkdownParser {
       }
 
       // 连续图片（非标准 Markdown，但主流编辑器普遍支持）
-      const consecutiveImages = this.parseConsecutiveImages(line);
+      const consecutiveImages = this.parseConsecutiveImages(trimmedLine);
       if (consecutiveImages) {
         blocks.push(...consecutiveImages);
         i++;
@@ -302,7 +305,7 @@ export class MarkdownParser {
       }
 
       // 链接图片 [![alt](src)](href)
-      const linkedImageMatch = line.match(BLOCK_PATTERNS.linked_image);
+      const linkedImageMatch = trimmedLine.match(BLOCK_PATTERNS.linked_image);
       if (linkedImageMatch) {
         blocks.push(this.parseLinkedImage(linkedImageMatch));
         i++;
@@ -310,7 +313,7 @@ export class MarkdownParser {
       }
 
       // 图片
-      const imageMatch = line.match(BLOCK_PATTERNS.image);
+      const imageMatch = trimmedLine.match(BLOCK_PATTERNS.image);
       if (imageMatch) {
         blocks.push(this.parseImage(imageMatch));
         i++;
@@ -318,7 +321,7 @@ export class MarkdownParser {
       }
 
       // 分隔线
-      if (BLOCK_PATTERNS.horizontal_rule.test(line)) {
+      if (BLOCK_PATTERNS.horizontal_rule.test(trimmedLine)) {
         blocks.push(this.schema.node("horizontal_rule"));
         i++;
         continue;
@@ -357,7 +360,7 @@ export class MarkdownParser {
       }
 
       // 表格
-      if (BLOCK_PATTERNS.table_row.test(line)) {
+      if (BLOCK_PATTERNS.table_row.test(trimmedLine)) {
         const result = this.parseTable(lines, i);
         if (result) {
           blocks.push(result.node);
@@ -366,8 +369,14 @@ export class MarkdownParser {
         }
       }
 
+      // 跳过孤立的 HTML 闭合标签（如 HTML 块中断后残留的 </div>）
+      if (/^<\/[a-zA-Z][a-zA-Z0-9]*\s*>$/.test(trimmedLine)) {
+        i++;
+        continue;
+      }
+
       // HTML 块（排除 autolink 如 <https://...> 和 <http://...>）
-      const htmlMatch = line.match(BLOCK_PATTERNS.html_block_start);
+      const htmlMatch = trimmedLine.match(BLOCK_PATTERNS.html_block_start);
       if (htmlMatch && !/^<(?:https?:\/\/|mailto:)/i.test(line)) {
         const tagName = htmlMatch[1].toLowerCase();
         // 行内元素不解析为 html_block，作为段落处理（行内语法由 syntax-detector 检测）
@@ -877,6 +886,7 @@ export class MarkdownParser {
     }
 
     // 多行 HTML 块：收集直到找到匹配的闭合标签
+    // 遇到非 HTML 行时中断，将剩余行交回主解析循环作为 Markdown 处理
     const contentLines: string[] = [startLine];
     let endIndex = startIndex + 1;
     let nestLevel = 1; // 已经有一个开始标签
@@ -885,7 +895,7 @@ export class MarkdownParser {
 
     while (endIndex < lines.length) {
       const line = lines[endIndex];
-      contentLines.push(line);
+      const trimmed = line.trim();
 
       // 检查同名标签的嵌套（简单计数）
       if (openPattern.test(line) && endIndex !== startIndex) {
@@ -894,10 +904,17 @@ export class MarkdownParser {
       if (closePattern.test(line)) {
         nestLevel--;
         if (nestLevel <= 0) {
+          contentLines.push(line);
           break;
         }
       }
 
+      // 非 HTML 行（不是标签、不是空行）→ 中断 HTML 块，剩余行作为 Markdown 解析
+      if (trimmed && !/^<[a-zA-Z/!]/.test(trimmed)) {
+        break;
+      }
+
+      contentLines.push(line);
       endIndex++;
     }
 

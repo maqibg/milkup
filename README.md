@@ -2,7 +2,6 @@
   <img src="./src/renderer/public/logo.svg" alt="milkup Logo" width="150"> 
   <h1>milkup</h1>
   <p><strong>一个跨平台的、即时渲染桌面端 Markdown 编辑器</strong></p>
-  
   [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
   [![Node.js](https://img.shields.io/badge/node-%3E%3D20.17.0-brightgreen.svg)](https://nodejs.org/)
   [![GitHub release (latest by date)](https://img.shields.io/github/v/release/Auto-Plugin/milkup)](https://github.com/Auto-Plugin/milkup/releases)

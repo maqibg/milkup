@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { app, BrowserWindow, globalShortcut, ipcMain, protocol, shell } from "electron";
+import { app, BrowserWindow, globalShortcut, ipcMain, protocol, session, shell } from "electron";
 import { isMarkdownFilePath, normalizeMarkdownFilePath, readMarkdownFile } from "./markdownFile";
 import {
   close,
@@ -279,20 +279,23 @@ app.whenReady().then(async () => {
   });
 
   // 设置 Chrome 风格的 User-Agent，避免部分图片 CDN 拒绝 Electron 默认 UA
-  // 使用默认 session，在窗口创建前设置确保对所有请求生效
-  const defaultSession = require("electron").session.defaultSession;
+  const defaultSession = session.defaultSession;
   if (defaultSession) {
     const defaultUA = defaultSession.getUserAgent();
     const chromeUA = defaultUA.replace(/Electron\/[\d.]+\s*/, "").replace(/\s*milkup\/[\d.]+/, "");
     defaultSession.setUserAgent(chromeUA);
 
-    // 移除 Referer 头，避免图片 CDN 因 Referer 检查而拒绝服务
-    defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
-      const headers = { ...details.requestHeaders };
-      delete headers.Referer;
-      delete headers.referer;
-      callback({ requestHeaders: headers });
-    });
+    // 仅移除图片请求的 Referer 头，避免 CDN 因 Referer 检查而拒绝服务
+    // 注意：必须始终调用 callback，否则请求会挂起
+    defaultSession.webRequest.onBeforeSendHeaders(
+      { urls: ["https://*/*", "http://*/*"] },
+      (details, callback) => {
+        const headers = { ...details.requestHeaders };
+        delete headers.Referer;
+        delete headers.referer;
+        callback({ requestHeaders: headers });
+      }
+    );
   }
 
   await createWindow();

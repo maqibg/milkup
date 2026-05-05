@@ -1,8 +1,8 @@
 /**
  * Milkup HTML 块 NodeView
  *
- * 渲染 HTML 内容，支持编辑模式和预览模式切换
- * 编辑模式使用 CodeMirror 6 + HTML 语法高亮
+ * 参考 Obsidian/Typora：HTML 内容默认直接渲染为 DOM 元素
+ * 点击进入编辑模式时显示 CodeMirror 源码编辑器
  */
 
 import { Node as ProseMirrorNode } from "prosemirror-model";
@@ -118,6 +118,9 @@ function sanitizeHtml(htmlContent: string): DocumentFragment {
 
 /**
  * HTML 块 NodeView
+ *
+ * 默认渲染模式：HTML 内容直接显示为 DOM 元素（类似 Obsidian/Typora）
+ * 编辑模式：显示 CodeMirror 源码编辑器（点击触发）
  */
 export class HtmlBlockView implements NodeView {
   dom: HTMLElement;
@@ -128,7 +131,6 @@ export class HtmlBlockView implements NodeView {
   private updating = false;
   private isEditing = false;
   private preview: HTMLElement;
-  private header: HTMLElement;
   private editorContainer: HTMLElement;
   private themeCompartment: Compartment;
   private themeObserver: MutationObserver | null = null;
@@ -142,28 +144,19 @@ export class HtmlBlockView implements NodeView {
 
     const isDark = detectDarkTheme();
 
-    // 创建容器
+    // 创建容器 -- 无边框无背景，直接渲染内容
     this.dom = document.createElement("div");
     this.dom.className = "milkup-html-block";
-    this.applyInlineHtmlClass(node);
 
-    // 创建 header（固定显示 "HTML"）
-    this.header = document.createElement("div");
-    this.header.className = "milkup-html-block-header";
-    const label = document.createElement("span");
-    label.className = "milkup-html-block-label";
-    label.textContent = "HTML";
-    this.header.appendChild(label);
-    this.dom.appendChild(this.header);
-
-    // 创建预览区域
+    // 创建预览区域（默认显示）
     this.preview = document.createElement("div");
     this.preview.className = "milkup-html-block-preview";
     this.dom.appendChild(this.preview);
 
-    // 创建编辑器容器
+    // 创建编辑器容器（默认隐藏）
     this.editorContainer = document.createElement("div");
     this.editorContainer.className = "milkup-html-block-editor";
+    this.editorContainer.style.display = "none";
     this.dom.appendChild(this.editorContainer);
 
     // 创建 CodeMirror 编辑器
@@ -230,7 +223,6 @@ export class HtmlBlockView implements NodeView {
 
     // 初始渲染
     this.updatePreview(node.textContent);
-    this.setEditing(false);
 
     // 点击预览区域进入编辑模式
     this.preview.addEventListener("click", () => this.enterEditMode());
@@ -273,12 +265,10 @@ export class HtmlBlockView implements NodeView {
     this.isEditing = editing;
     if (editing) {
       this.dom.classList.add("editing");
-      this.header.style.display = "";
       this.editorContainer.style.display = "";
       this.preview.style.display = "none";
     } else {
       this.dom.classList.remove("editing");
-      this.header.style.display = "none";
       this.editorContainer.style.display = "none";
       this.preview.style.display = "";
       // 更新预览
@@ -393,7 +383,6 @@ export class HtmlBlockView implements NodeView {
     if (node.type.name !== "html_block") return false;
     this.node = node;
     const newText = node.textContent;
-    this.applyInlineHtmlClass(node);
 
     if (newText !== this.cm.state.doc.toString()) {
       this.updating = true;
@@ -434,21 +423,6 @@ export class HtmlBlockView implements NodeView {
 
   ignoreMutation(): boolean {
     return true;
-  }
-
-  /**
-   * 根据内容更新 HTML 块的显示样式
-   * - 有内容时添加 has-content 类，隐藏外框直接显示渲染结果
-   * - 空内容时保留外框（显示占位提示）
-   * - 简单自闭合标签添加 inline-html 类
-   */
-  private applyInlineHtmlClass(node: ProseMirrorNode): void {
-    const content = node.textContent.trim();
-    // 匹配纯自闭合标签：<tagname /> 或 <tagname/> 或 <tagname attr />
-    const isSimpleVoid = /^<\w+(?:\s+[^>]*)?\s*\/?>$/.test(content) && !content.includes("\n");
-    this.dom.classList.toggle("inline-html", isSimpleVoid);
-    // 有内容时隐藏外框
-    this.dom.classList.toggle("has-content", content.length > 0);
   }
 
   destroy(): void {

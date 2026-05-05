@@ -410,7 +410,6 @@ export class ImageView implements NodeView {
     }
 
     const img = document.createElement("img");
-    // 将相对路径转为 milkup:// 协议 URL 仅用于 DOM 渲染
     img.src = resolveImageSrc(src);
     img.alt = alt;
     if (title) img.title = title;
