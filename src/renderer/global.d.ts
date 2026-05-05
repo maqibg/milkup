@@ -49,8 +49,6 @@ interface Window {
     ) => Promise<string>;
     showImageUnsavedChoice: () => Promise<"save" | "fallback" | "cancel">;
     copyImageToClipboard: (imageSrc: string, currentFilePath?: string | null) => Promise<boolean>;
-    // 图片路径解析
-    resolveImagePath: (markdownFilePath: string, imagePath: string) => Promise<string>;
     // 导出为 PDF
     exportAsPDF: (
       elementSelector: string,

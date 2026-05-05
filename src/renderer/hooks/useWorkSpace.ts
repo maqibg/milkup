@@ -327,12 +327,6 @@ watch(
   }
 );
 
-// 监听当前选中得tab
-watch(
-  () => currentTab.value,
-  () => {}
-);
-
 // 组件销毁时停止监听
 onUnmounted(() => {
   stopWatching();

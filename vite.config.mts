@@ -20,10 +20,6 @@ const i18nPlugin = vitePluginsAutoI18n({
   distKey: "index",
   targetLangList: ["ja", "ko", "ru", "en", "fr"],
   originLang: "zh-cn",
-  // translator: new YoudaoTranslator({
-  //   appId: '121c833175477478',
-  //   appKey: 'c71283uowjPJM3GtM0UWCmU4m3AnIERp',
-  // }),
   translator: new EmptyTranslator(),
 });
 

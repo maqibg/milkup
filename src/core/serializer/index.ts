@@ -4,7 +4,7 @@
  * 将 ProseMirror 文档序列化为 Markdown 文本
  */
 
-import { Node, Mark, Fragment } from "prosemirror-model";
+import { Node, Fragment } from "prosemirror-model";
 
 /** 序列化选项 */
 export interface SerializeOptions {
@@ -363,69 +363,6 @@ export class MarkdownSerializer {
    */
   serializeTableCellInline(node: Node): string {
     return this.serializeInline(node, { hardBreak: "<br>" });
-  }
-
-  /**
-   * 序列化带 Mark 的文本（已废弃，保留兼容）
-   */
-  private serializeTextWithMarks(node: Node): string {
-    // 跳过 syntax_marker 文本
-    if (node.marks.some((m) => m.type.name === "syntax_marker")) {
-      return "";
-    }
-
-    let text = node.text || "";
-
-    // 按 Mark 类型包装文本
-    for (const mark of node.marks) {
-      if (mark.type.name !== "syntax_marker") {
-        text = this.wrapWithMark(text, mark);
-      }
-    }
-
-    return text;
-  }
-
-  /**
-   * 用 Mark 包装文本
-   */
-  private wrapWithMark(text: string, mark: Mark): string {
-    switch (mark.type.name) {
-      case "strong":
-        return `**${text}**`;
-      case "emphasis":
-        return `*${text}*`;
-      case "code_inline":
-        return `\`${text}\``;
-      case "strikethrough":
-        return `~~${text}~~`;
-      case "highlight":
-        return `==${text}==`;
-      case "link": {
-        const rawHref = mark.attrs.href || "";
-        // 重新转义 URL 中的括号，避免 ) 提前终止链接语法
-        const href = rawHref.replace(/([()])/g, "\\$1");
-        const title = mark.attrs.title || "";
-        const titlePart = title ? ` "${title}"` : "";
-        return `[${text}](${href}${titlePart})`;
-      }
-      case "math_inline":
-        return `$${text}$`;
-      case "sub":
-        return `<sub>${text}</sub>`;
-      case "sup":
-        return `<sup>${text}</sup>`;
-      case "html_inline": {
-        const tag = mark.attrs.tag || "span";
-        const htmlAttrs = mark.attrs.htmlAttrs || "";
-        const openTag = htmlAttrs ? `<${tag} ${htmlAttrs}>` : `<${tag}>`;
-        return `${openTag}${text}</${tag}>`;
-      }
-      case "footnote_ref":
-        return `[^${mark.attrs.id}]`;
-      default:
-        return text;
-    }
   }
 }
 

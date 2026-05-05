@@ -1,6 +1,6 @@
 import type { Theme, ThemeName } from "@/types/theme";
 import autotoast from "autotoast.js";
-import { getCurrentInstance, onMounted, onUnmounted, ref, toRaw } from "vue";
+import { getCurrentInstance, onUnmounted, ref, toRaw } from "vue";
 import { cssVarsDesMap, defaultThemeName, themeDisplayOrder, themeNameMap } from "@/config/theme";
 import themeManager from "@/renderer/utils/themeManager";
 import { randomUUID } from "@/renderer/utils/tool";
@@ -366,7 +366,6 @@ function importTheme(theme: any) {
 
 export default function useTheme() {
   if (getCurrentInstance()) {
-    onMounted(() => {});
     onUnmounted(() => {
       uninstallListeners();
     });

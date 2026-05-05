@@ -68,25 +68,6 @@ export interface SyntaxMarkerRegion {
   syntaxType: string;
 }
 
-/** Mark 区域（兼容旧接口） */
-export interface MarkRegion {
-  type: string;
-  from: number;
-  to: number;
-  mark: any;
-}
-
-/** 语法区域（兼容旧接口） */
-export interface SyntaxRegion {
-  type: SyntaxType;
-  from: number;
-  to: number;
-  contentFrom: number;
-  contentTo: number;
-  prefix: string;
-  suffix: string;
-}
-
 /** 装饰插件 Key */
 export const decorationPluginKey = new PluginKey<DecorationPluginState>("milkup-decorations");
 
@@ -550,21 +531,6 @@ export function computeDecorations(
     syntaxRegions,
     mathInlineRegions,
   };
-}
-
-/**
- * 兼容旧接口
- */
-export function findSyntaxRegions(_doc: Node): SyntaxRegion[] {
-  return [];
-}
-
-export function findMarkRegions(_doc: Node): MarkRegion[] {
-  return [];
-}
-
-export function getActiveRegions(cursorPos: number, regions: any[]): any[] {
-  return regions.filter((r) => cursorPos >= r.from && cursorPos <= r.to);
 }
 
 /**

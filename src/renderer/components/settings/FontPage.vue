@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FontSizeType, FontType } from "@/types/font";
-import { onMounted, ref } from "vue";
+import { ref } from "vue";
 import { fontConfig, fontSizeConfig } from "@/config/fonts";
 import AppIcon from "@/renderer/components/ui/AppIcon.vue";
 import { VirtualSelect } from "@/renderer/components/ui/virtual-select";
@@ -29,8 +29,6 @@ function handleFontChange(fontType: FontType, value: string) {
 function handleFontSizeChange(fontSizeType: FontSizeType, value: string) {
   setFontSize(fontSizeType, value);
 }
-
-onMounted(() => {});
 </script>
 
 <template>

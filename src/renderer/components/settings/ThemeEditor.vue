@@ -6,7 +6,7 @@ import { onMounted, onUnmounted, reactive, ref } from "vue";
 import MilkupEditor from "@/renderer/components/editor/MilkupEditor.vue";
 import AppIcon from "@/renderer/components/ui/AppIcon.vue";
 import useTheme from "@/renderer/hooks/useTheme";
-import ColorPicker from "@/ui/ColorPicker.vue";
+import ColorPicker from "@/renderer/components/ui/color-picker/ColorPicker.vue";
 
 const {
   init,
@@ -71,7 +71,6 @@ function handleReset() {
 
 // 保存主题
 function handleSave() {
-  // return
   saveTheme();
 
   // 关闭窗口

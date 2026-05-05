@@ -1863,7 +1863,7 @@ export function getIsQuitting() {
 export function isWindowClosing(winId: number): boolean {
   return windowClosingSet.has(winId);
 }
-export function isFileReadOnly(filePath: string): boolean {
+function isFileReadOnly(filePath: string): boolean {
   const normalizedPath = normalizeMarkdownFilePath(filePath);
 
   // 先检测是否可写（跨平台）

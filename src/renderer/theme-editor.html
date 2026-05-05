@@ -26,7 +26,7 @@
                 break
               }
             }
-          } catch (e) {}
+          } catch (e) { /* fallback to default bg */ }
         }
         document.documentElement.style.background = bg || '#ffffff'
         document.documentElement.classList.add('theme-' + theme)

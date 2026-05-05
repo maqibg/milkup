@@ -706,7 +706,6 @@ export class CodeBlockView implements NodeView {
           EditorView.updateListener.of((update) => this.onCMUpdate(update)),
           EditorView.domEventHandlers({
             focus: () => this.forwardSelection(),
-            blur: () => {},
             contextmenu: (e) => {
               e.preventDefault();
               this.showContextMenu(e);

@@ -105,8 +105,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
   // 获取拖拽文件的真实路径
   getPathForFile: (file: File) => {
     try {
-      // 在 preload 脚本中直接访问 webUtils
-      // const { webUtils } = require('electron')
       const result = webUtils?.getPathForFile(file);
       return result;
     } catch (error) {

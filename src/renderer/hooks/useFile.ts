@@ -201,12 +201,12 @@ export default function useFile() {
 
     if (hasUnsavedTabs.value) {
       // 先检查要拖入的文件是否已经在某个tab中打开
-      const isFileAlreadyOpen = tabs.value.some(
+      const isAlreadyOpen = tabs.value.some(
         (tab) => tab.name === mdFile.name || (tab.filePath && tab.filePath.endsWith(mdFile.name))
       );
 
       // 只有当文件真的已经打开过时，才显示覆盖确认
-      if (isFileAlreadyOpen) {
+      if (isAlreadyOpen) {
         userChoice = await new Promise<"cancel" | "save" | "overwrite">((resolve) => {
           emitter.emit("file:overwrite-confirm", {
             fileName: mdFile.name,

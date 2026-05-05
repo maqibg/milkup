@@ -44,3 +44,9 @@ Thumbs.db
 coverage/
 
 pnpm-lock.yaml
+
+# Temp assets and build output
+assets/
+obsidian/
+.codex-temp/
+.codex-dev-*.log

@@ -75,8 +75,6 @@ function parseVersion(version: string): ParsedVersion | null {
  * @returns true 如果 latest > current
  */
 function isNewerVersion(latest: string, current: string): boolean {
-  console.log(`[isNewerVersion] Comparing: ${latest} vs ${current}`);
-
   const latestParsed = parseVersion(latest);
   const currentParsed = parseVersion(current);
 
@@ -84,9 +82,6 @@ function isNewerVersion(latest: string, current: string): boolean {
     console.warn("[isNewerVersion] Failed to parse versions, falling back to string comparison");
     return latest > current;
   }
-
-  console.log("[isNewerVersion] Parsed latest:", latestParsed);
-  console.log("[isNewerVersion] Parsed current:", currentParsed);
 
   // 比较主版本号
   if (latestParsed.major !== currentParsed.major) {
@@ -168,7 +163,6 @@ export function setupUpdateHandlers() {
   // 1. 检查更新
   ipcMain.handle("update:check", async () => {
     try {
-      console.log("[Main] Starting update check...");
       broadcastToAll("update:status", { status: "checking" });
 
       if (process.platform !== "win32") {
@@ -180,7 +174,6 @@ export function setupUpdateHandlers() {
       }
 
       const api = UPDATE_RELEASES_API;
-      console.log("[Main] Fetching from GitHub API:", api);
       const response = await net.fetch(api);
 
       if (!response.ok) {
@@ -191,11 +184,8 @@ export function setupUpdateHandlers() {
       const data = await response.json();
       const latestVersion = data.tag_name;
       const currentVersion = app.getVersion();
-      console.log("[Main] Latest version:", latestVersion, "Current version:", currentVersion);
 
-      // 无论是否是新版本，都尝试寻找对应资源，方便调试（或者逻辑上只在新版本时找）
       const isNew = isNewerVersion(latestVersion, currentVersion);
-      console.log("[Main] Is new version available:", isNew);
 
       if (isNew) {
         // 寻找对应平台的资源
@@ -218,7 +208,6 @@ export function setupUpdateHandlers() {
         }
 
         if (asset) {
-          console.log("[Main] Found asset:", asset.name);
           const updateInfo = {
             version: latestVersion,
             notes: data.body,
@@ -233,7 +222,6 @@ export function setupUpdateHandlers() {
           currentUpdateInfo = updateInfo; // 缓存 update info 供下载使用
 
           broadcastToAll("update:status", { status: "available", info: updateInfo });
-          console.log("[Main] Update available, returning info");
           return { updateInfo };
         } else {
           console.warn("[Main] No suitable asset found for platform:", process.platform);
@@ -244,7 +232,6 @@ export function setupUpdateHandlers() {
           return null;
         }
       } else {
-        console.log("[Main] Already on latest version");
         broadcastToAll("update:status", { status: "not-available" });
         return null;
       }
@@ -306,11 +293,9 @@ export function setupUpdateHandlers() {
           startByte = currentSize;
           openFlags = "a";
           headers["Range"] = `bytes=${startByte}-`;
-          console.log(`[Main] Resuming download from byte ${startByte}`);
         } else {
           // Larger than expected or unknown state, restart
           // fs.unlinkSync(downloadedFilePath) // open with 'w' will truncate it anyway
-          console.log("[Main] Existing file size mismatch, restarting download");
         }
       }
 
@@ -337,7 +322,6 @@ export function setupUpdateHandlers() {
         // Server ignored Range header, full content sent
         startByte = 0;
         openFlags = "w";
-        console.log("[Main] Server ignored Range header, restarting download");
       }
 
       const totalBytes = Number(response.headers.get("content-length") || 0) + startByte;
@@ -397,7 +381,6 @@ export function setupUpdateHandlers() {
       return downloadedFilePath;
     } catch (error: any) {
       if (error.name === "AbortError") {
-        console.log("[Main] Download aborted by user");
         broadcastToAll("update:status", { status: "idle" });
         return;
       }
@@ -413,15 +396,12 @@ export function setupUpdateHandlers() {
 
   // 4. 取消下载
   ipcMain.handle("update:cancel", () => {
-    console.log("[Main] Cancelling download...");
     if (downloadAbortController) {
       downloadAbortController.abort();
       downloadAbortController = null;
-      console.log("[Main] Download cancelled, status will be updated by download handler");
       // 不在这里发送状态更新，让下载函数的 catch 块处理
       // 这样可以避免重复发送事件
     } else {
-      console.log("[Main] No active download to cancel");
       // 如果没有活动的下载，确保状态是 idle
       broadcastToAll("update:status", { status: "idle" });
     }

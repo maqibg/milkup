@@ -25,7 +25,7 @@
                 break
               }
             }
-          } catch (e) {}
+          } catch (e) { /* fallback to default bg */ }
         }
         var primaryMap = {
           normal: '#5e81ac',
@@ -45,7 +45,7 @@
                 break
               }
             }
-          } catch (e) {}
+          } catch (e) { /* fallback to default primary */ }
         }
         document.documentElement.style.background = bg || '#ffffff'
         document.documentElement.style.setProperty('--primary-color', primary || '#5e81ac')

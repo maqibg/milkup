@@ -25,7 +25,7 @@ import "katex/dist/katex.min.css";
 
 import { milkupSchema } from "./schema";
 import { MarkdownParser } from "./parser";
-import { serializeMarkdown, MarkdownSerializer } from "./serializer";
+import { serializeMarkdown } from "./serializer";
 import { createInstantRenderPlugin } from "./plugins/instant-render";
 import { createInputRulesPlugin } from "./plugins/input-rules";
 import { createAutoPairPlugin } from "./plugins/auto-pair";
@@ -134,7 +134,6 @@ export class MilkupEditor implements IMilkupEditor {
   private config: MilkupConfig;
   private schema: Schema;
   private parser: MarkdownParser;
-  private serializer: MarkdownSerializer;
   private plugins: MilkupPlugin[] = [];
   private eventHandlers: Map<string, Set<Function>> = new Map();
   private contextMenu: HTMLElement | null = null;
@@ -162,7 +161,6 @@ export class MilkupEditor implements IMilkupEditor {
     this.config = { ...defaultConfig, ...config };
     this.schema = milkupSchema;
     this.parser = new MarkdownParser(this.schema);
-    this.serializer = new MarkdownSerializer();
 
     // 解析初始内容
     const { doc } = this.parser.parse(this.config.content || "");
@@ -2000,35 +1998,6 @@ export class MilkupEditor implements IMilkupEditor {
    */
   private emit(event: string, data: any): void {
     this.eventHandlers.get(event)?.forEach((handler) => handler(data));
-  }
-
-  /**
-   * 执行命令
-   */
-  command(_name: string, ..._args: any[]): boolean {
-    // 可以在这里添加自定义命令
-    return false;
-  }
-
-  /**
-   * 获取 ProseMirror 状态
-   */
-  getState(): EditorState {
-    return this.view.state;
-  }
-
-  /**
-   * 获取文档
-   */
-  getDoc(): Node {
-    return this.view.state.doc;
-  }
-
-  /**
-   * 获取 Schema
-   */
-  getSchema(): Schema {
-    return this.schema;
   }
 
   /**

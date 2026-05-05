@@ -74,17 +74,3 @@ export function createTabDataFromFile(
     fileTraits,
   };
 }
-
-/**
- * 批量读取文件（用于启动时或拖拽多个文件）
- */
-export async function readMultipleFiles(filePaths: string[]): Promise<FileContent[]> {
-  const results = await Promise.allSettled(
-    filePaths.map((fp) => readAndProcessFile({ filePath: fp }))
-  );
-
-  return results
-    .filter((r): r is PromiseFulfilledResult<FileContent | null> => r.status === "fulfilled")
-    .map((r) => r.value)
-    .filter((r): r is FileContent => r !== null);
-}

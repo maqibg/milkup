@@ -1,4 +1,6 @@
-export type EditorViewMode = "visual" | "source" | "compare";
+import type { EditorViewMode } from "@/types/tab";
+
+export type { EditorViewMode };
 
 export interface FileTraitsDTO {
   hasBOM: boolean;

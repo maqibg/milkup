@@ -3,7 +3,6 @@ import type { InertiaScroll } from "@/renderer/utils/inertiaScroll";
 import type { Tab } from "@/types/tab";
 import autotoast from "autotoast.js";
 import { computed, nextTick, ref, toRaw, watch } from "vue";
-import { setCurrentMarkdownFilePath } from "@/plugins/imagePathPlugin";
 import emitter from "@/renderer/events";
 import { createTabDataFromFile, readAndProcessFile } from "@/renderer/services/fileService";
 import { createInertiaScroll } from "@/renderer/utils/inertiaScroll";
@@ -69,11 +68,6 @@ async function initFromTearOff(): Promise<boolean> {
     activeTabId.value = tab.id;
     if (!tabData.isModified) {
       scheduleNewlyLoadedCleanup(tab.id);
-    }
-
-    // 设置图片路径解析
-    if (tab.filePath) {
-      setCurrentMarkdownFilePath(tab.filePath);
     }
 
     return true;
@@ -511,13 +505,6 @@ async function switchToTab(id: string) {
 
   // 设置当前tab为活跃状态
   setActive(id);
-
-  // 设置当前文件路径用于图片路径解析
-  if (targetTab.filePath) {
-    setCurrentMarkdownFilePath(targetTab.filePath);
-  } else {
-    setCurrentMarkdownFilePath(null);
-  }
 }
 
 // 计算属性
@@ -813,10 +800,6 @@ function handleTabMergeIn(tabData: TearOffTabData) {
   if (!tabData.isModified) {
     scheduleNewlyLoadedCleanup(tab.id);
   }
-
-  if (tab.filePath) {
-    setCurrentMarkdownFilePath(tab.filePath);
-  }
 }
 window.electronAPI.on("tab:merge-in", handleTabMergeIn);
 
@@ -893,10 +876,6 @@ function handleTabMergePreview(tabData: TearOffTabData, screenX?: number, screen
   activeTabId.value = tab.id;
   if (!tabData.isModified) {
     scheduleNewlyLoadedCleanup(tab.id);
-  }
-
-  if (tab.filePath) {
-    setCurrentMarkdownFilePath(tab.filePath);
   }
 
   mergePreviewState = {
