@@ -130,6 +130,7 @@ export class HtmlBlockView implements NodeView {
   private getPos: () => number | undefined;
   private updating = false;
   private isEditing = false;
+  private ready = false;
   private preview: HTMLElement;
   private editorContainer: HTMLElement;
   private themeCompartment: Compartment;
@@ -227,12 +228,13 @@ export class HtmlBlockView implements NodeView {
     // 点击预览区域进入编辑模式
     this.preview.addEventListener("click", () => this.enterEditMode());
 
-    // 初始检查光标位置
-    const { from, to } = view.state.selection;
-    this.updateEditingState(from, to);
-
     // 监听主题变化
     this.setupThemeObserver();
+
+    // 延迟标记为就绪，避免初始化时的选区变化自动进入编辑模式
+    requestAnimationFrame(() => {
+      this.ready = true;
+    });
   }
 
   private updatePreview(content: string): void {
@@ -246,6 +248,7 @@ export class HtmlBlockView implements NodeView {
   }
 
   updateEditingState(selFrom: number, selTo: number): void {
+    if (!this.ready) return;
     const pos = this.getPos();
     if (pos === undefined) return;
     const node = this.view.state.doc.nodeAt(pos);
