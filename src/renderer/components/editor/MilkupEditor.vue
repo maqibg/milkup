@@ -349,16 +349,17 @@ function createEditorInstance() {
 
 function syncEditorFromTab(content: string) {
   if (!editor) return;
+  // 同步设置文件路径，确保 rAF 中 setMarkdown 触发的 NodeView 创建
+  // （如 HtmlBlockView 中的 resolveImageSrc）能立即获取到正确的路径
+  if (props.isActive) {
+    (window as any).__currentFilePath = props.tab.filePath || null;
+  }
   const shouldShowLoading = props.isActive && isLargeMarkdown(content);
   if (shouldShowLoading) {
     isEditorInitializing.value = true;
   }
 
   requestAnimationFrame(async () => {
-    if (props.isActive) {
-      (window as any).__currentFilePath = props.tab.filePath || null;
-    }
-
     try {
       if (shouldShowLoading) {
         await nextFrame();

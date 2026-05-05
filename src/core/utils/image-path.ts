@@ -57,7 +57,7 @@ export function resolveImageSrc(src: string): string {
   }
 
   if (isAbsoluteLocalPath(src)) {
-    return `milkup:///absolute/${encodeBase64(src)}`;
+    return `milkup://file/absolute/${encodeBase64(src)}`;
   }
 
   const currentFilePath = (window as any).__currentFilePath;
@@ -66,5 +66,5 @@ export function resolveImageSrc(src: string): string {
   // 先解码 %20 为空格，避免 preprocessContent 的编码被双重转义
   const decodedSrc = src.replace(/%20/g, " ");
   const normalizedRelativePath = joinPath(".", decodedSrc).replace(/^\.\//, "");
-  return `milkup:///${encodeBase64(currentFilePath)}/${encodeURIComponent(normalizedRelativePath)}`;
+  return `milkup://file/${encodeBase64(currentFilePath)}/${encodeURIComponent(normalizedRelativePath)}`;
 }

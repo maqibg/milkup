@@ -1441,12 +1441,15 @@ export function registerGlobalIpcHandlers() {
           return false;
         }
 
-        // milkup:// 协议
-        if (imageSrc.startsWith("milkup:///absolute/")) {
-          const base64Path = imageSrc.replace("milkup:///absolute/", "");
+        // milkup:// 协议（milkup://file/ 前缀，兼容旧格式 milkup:///）
+        if (
+          imageSrc.startsWith("milkup://file/absolute/") ||
+          imageSrc.startsWith("milkup:///absolute/")
+        ) {
+          const base64Path = imageSrc.replace(/^milkup:\/\/(file\/)?absolute\//, "");
           filePath = Buffer.from(base64Path, "base64").toString("utf-8");
-        } else if (imageSrc.startsWith("milkup:///")) {
-          const parts = imageSrc.replace("milkup:///", "").split("/");
+        } else if (imageSrc.startsWith("milkup://file/") || imageSrc.startsWith("milkup:///")) {
+          const parts = imageSrc.replace(/^milkup:\/\/(file\/)?/, "").split("/");
           if (parts.length >= 2) {
             const base64FilePath = parts[0];
             const relativePath = decodeURIComponent(parts.slice(1).join("/"));

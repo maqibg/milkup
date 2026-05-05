@@ -909,8 +909,9 @@ export class MarkdownParser {
         }
       }
 
-      // 非 HTML 行（不是标签、不是空行）→ 中断 HTML 块，剩余行作为 Markdown 解析
-      if (trimmed && !/^<[a-zA-Z/!]/.test(trimmed)) {
+      // 空行或非 HTML 行 → 中断 HTML 块，剩余行作为 Markdown 解析
+      // CommonMark 规范：type 6 HTML 块在空行处结束
+      if (!trimmed || !/^<[a-zA-Z/!]/.test(trimmed)) {
         break;
       }
 

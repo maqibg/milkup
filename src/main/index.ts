@@ -221,9 +221,11 @@ app.whenReady().then(async () => {
     try {
       const rawUrl = request.url;
 
-      // 提取路径部分
+      // 提取路径部分（milkup://file/ 前缀，base64 在 path 中不会被小写规范化）
       let urlPath: string;
-      if (rawUrl.startsWith("milkup:///")) {
+      if (rawUrl.startsWith("milkup://file/")) {
+        urlPath = rawUrl.substring("milkup://file/".length);
+      } else if (rawUrl.startsWith("milkup:///")) {
         urlPath = rawUrl.substring("milkup:///".length);
       } else {
         urlPath = rawUrl.substring("milkup://".length);

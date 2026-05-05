@@ -76,6 +76,7 @@ import {
   toggleSourceView,
   setSourceView,
   decorationPluginKey,
+  sourceViewManager,
 } from "./decorations";
 import type { MilkupConfig, MilkupEditor as IMilkupEditor, MilkupPlugin } from "./types";
 import {
@@ -401,6 +402,9 @@ export class MilkupEditor implements IMilkupEditor {
     this.searchWrapper?.remove();
     this.searchWrapper = null;
     this.searchPanel = null;
+
+    // 重置全局源码模式状态，避免新建编辑器的 NodeView 继承旧状态
+    sourceViewManager.setState(false);
 
     // 销毁视图
     this.view.destroy();

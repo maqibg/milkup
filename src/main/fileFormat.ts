@@ -96,14 +96,18 @@ export function cleanupProtocolUrls(content: string): string {
   let result = content;
 
   // Markdown 图片: ![alt](milkup://...relative) → ![alt](relative)
-  result = result.replace(/!\[([^\]]*)\]\(milkup:\/\/\/?([^)]+)\)/g, (match, alt, urlContent) => {
-    const relative = extractRelativePath(urlContent);
-    return relative ? `![${alt}](${relative})` : match;
-  });
+  // 兼容 milkup://file/ 和 milkup:/// 两种格式
+  result = result.replace(
+    /!\[([^\]]*)\]\(milkup:\/\/(?:file\/)?\/?([^)]+)\)/g,
+    (match, alt, urlContent) => {
+      const relative = extractRelativePath(urlContent);
+      return relative ? `![${alt}](${relative})` : match;
+    }
+  );
 
   // HTML img: <img src="milkup://...relative" />
   result = result.replace(
-    /<img(\s[^>]*?)src=(["'])milkup:\/\/\/?([^"']+)\2([^>]*)>/gi,
+    /<img(\s[^>]*?)src=(["'])milkup:\/\/(?:file\/)?\/?([^"']+)\2([^>]*)>/gi,
     (match, before, quote, urlContent, after) => {
       const relative = extractRelativePath(urlContent);
       return relative ? `<img${before}src=${quote}${relative}${quote}${after}>` : match;
