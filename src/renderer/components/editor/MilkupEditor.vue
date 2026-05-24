@@ -366,7 +366,11 @@ function syncEditorFromTab(content: string) {
       }
 
       const contentForRendering = preprocessContent(content);
-      editor?.setMarkdown(contentForRendering);
+      const normalize = (s: string) => s.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      const currentMarkdown = editor?.getMarkdown() ?? "";
+      if (normalize(contentForRendering) !== normalize(currentMarkdown)) {
+        editor?.setMarkdown(contentForRendering);
+      }
 
       nextTick(() => {
         if (scrollViewRef.value) {
@@ -485,10 +489,9 @@ watch(
     if (props.isActive) {
       (window as any).__currentFilePath = newValue || null;
     }
-    if (props.tab.content !== undefined) {
-      lastEmittedValue.value = null;
-      syncEditorFromTab(props.tab.content);
-    }
+    // 只清空 guard，让 content watch 负责编辑器同步
+    // 避免与 content watch 双重触发 setMarkdown 导致光标跳转
+    lastEmittedValue.value = null;
   }
 );
 

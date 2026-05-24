@@ -138,6 +138,7 @@ onUnmounted(() => {
   .label {
     min-width: 100px;
     display: inline-block;
+    color: var(--text-color-1);
 
     &.required {
       &::after {
@@ -187,6 +188,7 @@ onUnmounted(() => {
     .selector-item {
       padding: 10px;
       cursor: pointer;
+      color: var(--text-color-1);
 
       &:hover {
         background-color: var(--hover-background-color);

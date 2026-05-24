@@ -6,14 +6,16 @@
  * 装饰只控制显示/隐藏，不改变文档结构
  */
 
-import { Decoration, DecorationSet } from "prosemirror-view";
-import { EditorState, Plugin, PluginKey } from "prosemirror-state";
+import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
+import { EditorState, Plugin, PluginKey, Selection, Transaction } from "prosemirror-state";
 import { Node } from "prosemirror-model";
 import type { SyntaxType } from "../types";
 import { renderInlineMath } from "../nodeviews/math-block";
+import { decodeHtmlEntity, HTML_ENTITY_SYNTAX_TYPE } from "../utils/html-entities";
 import {
   convertBlocksToParagraphs,
   convertParagraphsToBlocks,
+  sourceViewTransformAppliedMeta,
 } from "../plugins/source-view-transform";
 
 // ============ 源码模式状态管理器 ============
@@ -71,6 +73,148 @@ export interface SyntaxMarkerRegion {
 /** 装饰插件 Key */
 export const decorationPluginKey = new PluginKey<DecorationPluginState>("milkup-decorations");
 
+const SOURCE_VIEW_CURSOR_MARKER_PREFIX = "milkup-source-view-cursor-";
+const SOURCE_VIEW_CURSOR_MARKER_SUFFIX = "";
+
+function isOffsetInsideLinePrefix(text: string, offset: number, prefixPattern: RegExp): boolean {
+  const prefix = text.match(prefixPattern)?.[0];
+  return prefix ? offset < prefix.length : true;
+}
+
+function isSourceParagraphWithStructuralSyntax(node: Node, offset: number): boolean {
+  if (node.type.name !== "paragraph") return false;
+
+  if (node.attrs.codeBlockId) {
+    const lineIndex = node.attrs.lineIndex as number;
+    const totalLines = node.attrs.totalLines as number;
+    return lineIndex === 0 || lineIndex === totalLines - 1;
+  }
+
+  if (node.attrs.mathBlockId) {
+    const lineIndex = node.attrs.mathBlockLineIndex as number;
+    const totalLines = node.attrs.mathBlockTotalLines as number;
+    return lineIndex === 0 || lineIndex === totalLines - 1;
+  }
+
+  if (node.attrs.listId) {
+    return isOffsetInsideLinePrefix(
+      node.textContent,
+      offset,
+      /^\s*(?:(?:[-*+]\s+\[[ xX]\]\s+)|(?:[-*+]|\d+\.)\s+|\s+)/
+    );
+  }
+
+  if (node.attrs.blockquoteId) {
+    return isOffsetInsideLinePrefix(node.textContent, offset, /^\s*(?:>\s*)+/);
+  }
+
+  if (node.attrs.tableId) {
+    const rowIndex = node.attrs.tableRowIndex as number;
+    const touchesCellBoundary =
+      node.textContent[offset] === "|" || node.textContent[Math.max(0, offset - 1)] === "|";
+    return rowIndex === 1 || touchesCellBoundary;
+  }
+
+  return Boolean(
+    node.attrs.imageAttrs ||
+    node.attrs.imageGroupSource ||
+    node.attrs.hrSource ||
+    node.attrs.htmlBlockId ||
+    node.attrs.blockquoteSeparator ||
+    node.textContent.trimStart().startsWith("|")
+  );
+}
+
+function createSourceViewCursorMarker(): string {
+  return `${SOURCE_VIEW_CURSOR_MARKER_PREFIX}${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}${SOURCE_VIEW_CURSOR_MARKER_SUFFIX}`;
+}
+
+function addSourceViewCursorMarker(
+  tr: Transaction,
+  state: EditorState,
+  isSourceView: boolean
+): string | null {
+  const $head = state.selection.$head;
+  if (!$head.parent.inlineContent) return null;
+  if (isSourceView && isSourceParagraphWithStructuralSyntax($head.parent, $head.parentOffset)) {
+    return null;
+  }
+
+  const marker = createSourceViewCursorMarker();
+  try {
+    tr.insertText(marker, state.selection.head);
+    return marker;
+  } catch {
+    return null;
+  }
+}
+
+function restoreSourceViewCursorMarker(tr: Transaction, marker: string | null): boolean {
+  if (!marker) return false;
+
+  let markerPos: number | null = null;
+  tr.doc.descendants((node, pos) => {
+    if (!node.isText || !node.text) return true;
+
+    const markerIndex = node.text.indexOf(marker);
+    if (markerIndex === -1) return true;
+
+    markerPos = pos + markerIndex;
+    return false;
+  });
+
+  if (markerPos === null) return false;
+
+  tr.delete(markerPos, markerPos + marker.length);
+  const safePos = Math.min(markerPos, tr.doc.content.size);
+  tr.setSelection(Selection.near(tr.doc.resolve(safePos), 1));
+  return true;
+}
+
+function getSelectionViewportOffset(view: EditorView): number | null {
+  const scrollView = view.dom.closest(".scrollView");
+  if (!(scrollView instanceof HTMLElement)) return null;
+
+  try {
+    const cursorCoords = view.coordsAtPos(view.state.selection.head);
+    return cursorCoords.top - scrollView.getBoundingClientRect().top;
+  } catch {
+    return null;
+  }
+}
+
+function restoreSelectionViewportOffset(
+  view: EditorView,
+  previousOffset: number,
+  remainingPasses = 3
+): void {
+  const scheduleNextPass = () => {
+    if (remainingPasses > 1) {
+      restoreSelectionViewportOffset(view, previousOffset, remainingPasses - 1);
+    }
+  };
+
+  requestAnimationFrame(() => {
+    if (!view.dom.isConnected) return;
+
+    const scrollView = view.dom.closest(".scrollView");
+    if (!(scrollView instanceof HTMLElement)) return;
+
+    try {
+      const cursorCoords = view.coordsAtPos(view.state.selection.head);
+      const nextOffset = cursorCoords.top - scrollView.getBoundingClientRect().top;
+      scrollView.scrollTop += nextOffset - previousOffset;
+    } catch {
+      scheduleNextPass();
+      return;
+    }
+
+    scheduleNextPass();
+  });
+}
+
 /** CSS 类名映射 */
 export const SYNTAX_CLASSES: Record<string, string> = {
   strong: "milkup-strong",
@@ -86,6 +230,7 @@ export const SYNTAX_CLASSES: Record<string, string> = {
   sub: "milkup-sub", // 下标
   sup: "milkup-sup", // 上标
   html_inline: "milkup-html-inline", // 行内 HTML
+  html_entity: "milkup-html-entity", // HTML entity
 };
 
 /** 语法类型关联映射 - 用于处理嵌套语法 */
@@ -103,6 +248,7 @@ const SYNTAX_TYPE_RELATIONS: Record<string, string[]> = {
   sub: ["sub"],
   sup: ["sup"],
   html_inline: ["html_inline"],
+  html_entity: ["html_entity"],
 };
 
 /**
@@ -460,7 +606,26 @@ export function computeDecorations(
 
     if (!shouldShow) {
       // 隐藏语法标记
-      if (region.syntaxType === "heading") {
+      if (region.syntaxType === HTML_ENTITY_SYNTAX_TYPE) {
+        // HTML entity: 隐藏原文，显示解码字符
+        const entityText = doc.textBetween(region.from, region.to);
+        const decoded = decodeHtmlEntity(entityText) || entityText;
+        decorations.push(
+          Decoration.inline(region.from, region.to, {
+            class: "milkup-syntax-hidden",
+            contenteditable: "false",
+            "aria-hidden": "true",
+          })
+        );
+        decorations.push(
+          Decoration.widget(region.from, () => {
+            const span = document.createElement("span");
+            span.className = "milkup-html-entity";
+            span.textContent = decoded;
+            return span;
+          })
+        );
+      } else if (region.syntaxType === "heading") {
         // 标题语法标记特殊处理：只隐藏 # 字符，保留尾部空格可见
         const text = doc.textBetween(region.from, region.to);
         const hashEnd = text.search(/[^#]/);
@@ -605,29 +770,40 @@ export function createDecorationPlugin(initialSourceView = false): Plugin<Decora
 /**
  * 切换源码视图
  */
-export function toggleSourceView(state: EditorState, dispatch?: (tr: any) => void): boolean {
+export function toggleSourceView(
+  state: EditorState,
+  dispatch?: (tr: any) => void,
+  view?: EditorView
+): boolean {
   const pluginState = decorationPluginKey.getState(state);
   if (!pluginState) return false;
 
   const newSourceView = !pluginState.sourceView;
+  const selectionViewportOffset = view ? getSelectionViewportOffset(view) : null;
 
   if (dispatch) {
     const tr = state.tr
       .setMeta(decorationPluginKey, {
         sourceView: newSourceView,
       })
+      .setMeta(sourceViewTransformAppliedMeta, true)
       .setMeta("addToHistory", false);
+    const cursorMarker = addSourceViewCursorMarker(tr, state, pluginState.sourceView);
     // 将文档转换合并到同一个 transaction 中，避免 appendTransaction 产生第二轮插件应用
     if (newSourceView) {
       convertBlocksToParagraphs(tr);
     } else {
       convertParagraphsToBlocks(tr);
     }
-    dispatch(tr);
+    restoreSourceViewCursorMarker(tr, cursorMarker);
+    dispatch(selectionViewportOffset === null ? tr.scrollIntoView() : tr);
   }
 
   // 通知状态管理器
   sourceViewManager.setState(newSourceView);
+  if (dispatch && view && selectionViewportOffset !== null) {
+    restoreSelectionViewportOffset(view, selectionViewportOffset);
+  }
 
   return true;
 }

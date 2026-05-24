@@ -15,6 +15,9 @@ import { MarkdownSerializer } from "../serializer";
 /** 插件 Key */
 export const sourceViewTransformPluginKey = new PluginKey("milkup-source-view-transform");
 
+/** 用于标记源码视图切换 transaction 已应用文档转换 */
+export const sourceViewTransformAppliedMeta = sourceViewTransformPluginKey;
+
 /**
  * 生成唯一的代码块 ID
  */
@@ -567,6 +570,13 @@ function generateListId(): string {
 }
 
 /**
+ * 生成唯一的引用块 ID
+ */
+function generateBlockquoteId(): string {
+  return `bq_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+}
+
+/**
  * 将列表节点转换为多个段落节点
  */
 function transformListToParagraphs(list: ProseMirrorNode, schema: Schema): ProseMirrorNode[] {
@@ -622,6 +632,57 @@ function transformParagraphsToList(
 }
 
 /**
+ * 将引用块节点转换为多个段落节点
+ */
+function transformBlockquoteToParagraphs(
+  blockquote: ProseMirrorNode,
+  schema: Schema
+): ProseMirrorNode[] {
+  const blockquoteId = generateBlockquoteId();
+  const serializer = new MarkdownSerializer({ compact: true });
+  const tempDoc = schema.nodes.doc.create(null, [blockquote]);
+  const markdown = serializer.serialize(tempDoc);
+  const content = markdown.replace(/\n+$/, "");
+  const lines = content.split("\n");
+
+  return lines.map((line, index) =>
+    schema.nodes.paragraph.create(
+      {
+        blockquoteId,
+        blockquoteLineIndex: index,
+        blockquoteTotalLines: lines.length,
+      },
+      line.length > 0 ? schema.text(line) : undefined
+    )
+  );
+}
+
+/**
+ * 将连续的引用块段落节点重新组合成引用块
+ */
+function transformParagraphsToBlockquote(
+  paragraphs: Array<{ node: ProseMirrorNode; pos: number }>,
+  _schema: Schema
+): ProseMirrorNode[] | null {
+  if (paragraphs.length === 0) return null;
+
+  const lines = paragraphs.map((p) => p.node.textContent);
+  const blockquoteMarkdown = lines.join("\n");
+  const result = parseMarkdown(blockquoteMarkdown);
+  const nodes: ProseMirrorNode[] = [];
+
+  result.doc.forEach((node) => {
+    nodes.push(node);
+  });
+
+  return nodes.length > 0 ? nodes : null;
+}
+
+function createBlockquoteSeparatorParagraph(schema: Schema): ProseMirrorNode {
+  return schema.nodes.paragraph.create({ blockquoteSeparator: true });
+}
+
+/**
  * 递归处理节点，将块级元素转换为段落（用于进入源码模式）
  */
 function processNodeForSourceConversion(
@@ -646,6 +707,8 @@ function processNodeForSourceConversion(
     node.type.name === "task_list"
   ) {
     return transformListToParagraphs(node, schema);
+  } else if (node.type.name === "blockquote") {
+    return transformBlockquoteToParagraphs(node, schema);
   }
 
   // 递归处理子节点
@@ -787,6 +850,8 @@ function processNodeForBlockConversion(
     let currentMathBlockId: string | null = null;
     let listGroup: ProseMirrorNode[] = [];
     let currentListId: string | null = null;
+    let blockquoteGroup: ProseMirrorNode[] = [];
+    let currentBlockquoteId: string | null = null;
     let markdownTableCandidateGroup: ProseMirrorNode[] = [];
 
     const flushCodeBlockGroup = () => {
@@ -854,6 +919,19 @@ function processNodeForBlockConversion(
       currentListId = null;
     };
 
+    const flushBlockquoteGroup = () => {
+      if (blockquoteGroup.length === 0) return;
+      const paragraphs = blockquoteGroup.map((n) => ({ node: n, pos: 0 }));
+      const result = transformParagraphsToBlockquote(paragraphs, schema);
+      if (result) {
+        newChildren.push(...result);
+      } else {
+        newChildren.push(...blockquoteGroup);
+      }
+      blockquoteGroup = [];
+      currentBlockquoteId = null;
+    };
+
     const flushMarkdownTableCandidateGroup = () => {
       newChildren.push(
         ...transformMarkdownTableCandidateGroup(markdownTableCandidateGroup, schema)
@@ -875,6 +953,7 @@ function processNodeForBlockConversion(
           flushHtmlBlockGroup();
           flushMathBlockGroup();
           flushListGroup();
+          flushBlockquoteGroup();
           flushMarkdownTableCandidateGroup();
           if (currentCodeBlockId && currentCodeBlockId !== codeBlockId) {
             flushCodeBlockGroup();
@@ -890,6 +969,7 @@ function processNodeForBlockConversion(
           flushHtmlBlockGroup();
           flushMathBlockGroup();
           flushListGroup();
+          flushBlockquoteGroup();
           flushMarkdownTableCandidateGroup();
           if (currentTableId && currentTableId !== tableId) {
             flushTableGroup();
@@ -905,6 +985,7 @@ function processNodeForBlockConversion(
           flushTableGroup();
           flushMathBlockGroup();
           flushListGroup();
+          flushBlockquoteGroup();
           flushMarkdownTableCandidateGroup();
           if (currentHtmlBlockId && currentHtmlBlockId !== htmlBlockId) {
             flushHtmlBlockGroup();
@@ -920,6 +1001,7 @@ function processNodeForBlockConversion(
           flushTableGroup();
           flushHtmlBlockGroup();
           flushListGroup();
+          flushBlockquoteGroup();
           flushMarkdownTableCandidateGroup();
           if (currentMathBlockId && currentMathBlockId !== mathBlockId) {
             flushMathBlockGroup();
@@ -935,6 +1017,7 @@ function processNodeForBlockConversion(
           flushTableGroup();
           flushHtmlBlockGroup();
           flushMathBlockGroup();
+          flushBlockquoteGroup();
           flushMarkdownTableCandidateGroup();
           if (currentListId && currentListId !== listId) {
             flushListGroup();
@@ -944,12 +1027,43 @@ function processNodeForBlockConversion(
           return;
         }
 
+        const blockquoteId = child.attrs.blockquoteId;
+        const blockquoteSeparator = child.attrs.blockquoteSeparator;
+
+        if (blockquoteSeparator && child.textContent.length === 0) {
+          flushCodeBlockGroup();
+          flushTableGroup();
+          flushHtmlBlockGroup();
+          flushMathBlockGroup();
+          flushListGroup();
+          flushBlockquoteGroup();
+          flushMarkdownTableCandidateGroup();
+          return;
+        }
+
+        if (blockquoteId) {
+          // 引用块段落
+          flushCodeBlockGroup();
+          flushTableGroup();
+          flushHtmlBlockGroup();
+          flushMathBlockGroup();
+          flushListGroup();
+          flushMarkdownTableCandidateGroup();
+          if (currentBlockquoteId && currentBlockquoteId !== blockquoteId) {
+            flushBlockquoteGroup();
+          }
+          currentBlockquoteId = blockquoteId;
+          blockquoteGroup.push(child);
+          return;
+        }
+
         // 非特殊段落，先刷新之前的组
         flushCodeBlockGroup();
         flushTableGroup();
         flushHtmlBlockGroup();
         flushMathBlockGroup();
         flushListGroup();
+        flushBlockquoteGroup();
 
         if (child.attrs.imageGroupSource) {
           flushMarkdownTableCandidateGroup();
@@ -975,6 +1089,7 @@ function processNodeForBlockConversion(
         flushHtmlBlockGroup();
         flushMathBlockGroup();
         flushListGroup();
+        flushBlockquoteGroup();
         flushMarkdownTableCandidateGroup();
         // 递归处理子节点
         const processed = processNodeForBlockConversion(child, schema);
@@ -992,6 +1107,7 @@ function processNodeForBlockConversion(
     flushHtmlBlockGroup();
     flushMathBlockGroup();
     flushListGroup();
+    flushBlockquoteGroup();
     flushMarkdownTableCandidateGroup();
 
     // 如果内容有变化，创建新节点
@@ -1028,6 +1144,9 @@ export function convertParagraphsToBlocks(tr: Transaction): Transaction {
   // 收集列表段落组
   let listGroup: ProseMirrorNode[] = [];
   let currentListId: string | null = null;
+  // 收集引用块段落组
+  let blockquoteGroup: ProseMirrorNode[] = [];
+  let currentBlockquoteId: string | null = null;
   let markdownTableCandidateGroup: ProseMirrorNode[] = [];
 
   const flushCodeBlockGroup = () => {
@@ -1096,6 +1215,19 @@ export function convertParagraphsToBlocks(tr: Transaction): Transaction {
     currentListId = null;
   };
 
+  const flushBlockquoteGroup = () => {
+    if (blockquoteGroup.length === 0) return;
+    const paragraphs = blockquoteGroup.map((node) => ({ node, pos: 0 }));
+    const result = transformParagraphsToBlockquote(paragraphs, schema);
+    if (result) {
+      newContent.push(...result);
+    } else {
+      newContent.push(...blockquoteGroup);
+    }
+    blockquoteGroup = [];
+    currentBlockquoteId = null;
+  };
+
   const flushMarkdownTableCandidateGroup = () => {
     newContent.push(...transformMarkdownTableCandidateGroup(markdownTableCandidateGroup, schema));
     markdownTableCandidateGroup = [];
@@ -1115,6 +1247,7 @@ export function convertParagraphsToBlocks(tr: Transaction): Transaction {
         flushHtmlBlockGroup();
         flushMathBlockGroup();
         flushListGroup();
+        flushBlockquoteGroup();
         flushMarkdownTableCandidateGroup();
         if (currentCodeBlockId && currentCodeBlockId !== codeBlockId) {
           flushCodeBlockGroup();
@@ -1130,6 +1263,7 @@ export function convertParagraphsToBlocks(tr: Transaction): Transaction {
         flushHtmlBlockGroup();
         flushMathBlockGroup();
         flushListGroup();
+        flushBlockquoteGroup();
         flushMarkdownTableCandidateGroup();
         if (currentTableId && currentTableId !== tableId) {
           flushTableGroup();
@@ -1145,6 +1279,7 @@ export function convertParagraphsToBlocks(tr: Transaction): Transaction {
         flushTableGroup();
         flushMathBlockGroup();
         flushListGroup();
+        flushBlockquoteGroup();
         flushMarkdownTableCandidateGroup();
         if (currentHtmlBlockId && currentHtmlBlockId !== htmlBlockId) {
           flushHtmlBlockGroup();
@@ -1160,6 +1295,7 @@ export function convertParagraphsToBlocks(tr: Transaction): Transaction {
         flushTableGroup();
         flushHtmlBlockGroup();
         flushListGroup();
+        flushBlockquoteGroup();
         flushMarkdownTableCandidateGroup();
         if (currentMathBlockId && currentMathBlockId !== mathBlockId) {
           flushMathBlockGroup();
@@ -1175,6 +1311,7 @@ export function convertParagraphsToBlocks(tr: Transaction): Transaction {
         flushTableGroup();
         flushHtmlBlockGroup();
         flushMathBlockGroup();
+        flushBlockquoteGroup();
         flushMarkdownTableCandidateGroup();
         if (currentListId && currentListId !== listId) {
           flushListGroup();
@@ -1184,12 +1321,43 @@ export function convertParagraphsToBlocks(tr: Transaction): Transaction {
         return;
       }
 
+      const blockquoteId = node.attrs.blockquoteId;
+      const blockquoteSeparator = node.attrs.blockquoteSeparator;
+
+      if (blockquoteSeparator && node.textContent.length === 0) {
+        flushCodeBlockGroup();
+        flushTableGroup();
+        flushHtmlBlockGroup();
+        flushMathBlockGroup();
+        flushListGroup();
+        flushBlockquoteGroup();
+        flushMarkdownTableCandidateGroup();
+        return;
+      }
+
+      if (blockquoteId) {
+        // 引用块段落
+        flushCodeBlockGroup();
+        flushTableGroup();
+        flushHtmlBlockGroup();
+        flushMathBlockGroup();
+        flushListGroup();
+        flushMarkdownTableCandidateGroup();
+        if (currentBlockquoteId && currentBlockquoteId !== blockquoteId) {
+          flushBlockquoteGroup();
+        }
+        currentBlockquoteId = blockquoteId;
+        blockquoteGroup.push(node);
+        return;
+      }
+
       // 非特殊段落，先刷新之前的组
       flushCodeBlockGroup();
       flushTableGroup();
       flushHtmlBlockGroup();
       flushMathBlockGroup();
       flushListGroup();
+      flushBlockquoteGroup();
 
       if (node.attrs.imageGroupSource) {
         flushMarkdownTableCandidateGroup();
@@ -1234,6 +1402,7 @@ export function convertParagraphsToBlocks(tr: Transaction): Transaction {
   flushHtmlBlockGroup();
   flushMathBlockGroup();
   flushListGroup();
+  flushBlockquoteGroup();
   flushMarkdownTableCandidateGroup();
 
   if (newContent.length > 0) {

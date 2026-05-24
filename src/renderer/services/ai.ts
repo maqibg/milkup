@@ -62,6 +62,17 @@ const RESPONSE_SCHEMA = {
   },
 };
 
+function isDeepSeekModel(config: AIConfig): boolean {
+  const baseUrl = config.baseUrl.toLowerCase();
+  const model = config.model.toLowerCase();
+  return baseUrl.includes("deepseek") || model.includes("deepseek");
+}
+
+function isUnsupportedResponseFormatError(error: any): boolean {
+  const msg = String(error?.message || error || "").toLowerCase();
+  return msg.includes("response_format") || msg.includes("json_schema");
+}
+
 function buildConnectionExpression() {
   const operator = Math.random() < 0.5 ? "+" : "-";
   if (operator === "+") {
@@ -437,8 +448,8 @@ export class AIService {
           ],
           temperature: config.temperature,
           stream: false,
-          // OpenAI Structured Outputs
-          response_format: RESPONSE_SCHEMA,
+          // DeepSeek 不支持 json_schema response_format，需跳过
+          ...(isDeepSeekModel(config) ? {} : { response_format: RESPONSE_SCHEMA }),
         };
         break;
 
@@ -519,35 +530,61 @@ export class AIService {
         break;
     }
 
-    const response = await this.request(url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
+    try {
+      const response = await this.request(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
 
-    let content = "";
+      let content = "";
 
-    if (config.provider === "openai" || config.provider === "custom") {
-      content = response.choices?.[0]?.message?.content || "";
-    } else if (config.provider === "anthropic") {
-      // Handle tool use response
-      if (response.content) {
-        const toolUse = response.content.find((c: any) => c.type === "tool_use");
-        if (toolUse && toolUse.input) {
-          // Directly return parsed input as it is already JSON object
-          if (toolUse.input.continuation) {
-            return { continuation: toolUse.input.continuation };
+      if (config.provider === "openai" || config.provider === "custom") {
+        content = response.choices?.[0]?.message?.content || "";
+      } else if (config.provider === "anthropic") {
+        // Handle tool use response
+        if (response.content) {
+          const toolUse = response.content.find((c: any) => c.type === "tool_use");
+          if (toolUse && toolUse.input) {
+            // Directly return parsed input as it is already JSON object
+            if (toolUse.input.continuation) {
+              return { continuation: toolUse.input.continuation };
+            }
           }
+          // Fallback to text if tool wasn't used properly (unlikely with tool_choice forced)
+          content = response.content.find((c: any) => c.type === "text")?.text || "";
         }
-        // Fallback to text if tool wasn't used properly (unlikely with tool_choice forced)
-        content = response.content.find((c: any) => c.type === "text")?.text || "";
+      } else if (config.provider === "gemini") {
+        content = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
+      } else if (config.provider === "ollama") {
+        content = response.message?.content || "";
       }
-    } else if (config.provider === "gemini") {
-      content = response.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    } else if (config.provider === "ollama") {
-      content = response.message?.content || "";
-    }
 
-    return this.parseResponse(content);
+      return this.parseResponse(content);
+    } catch (error: any) {
+      // Fallback: 如果 response_format 错误，不带 response_format 重试
+      if (
+        (config.provider === "openai" || config.provider === "custom") &&
+        isUnsupportedResponseFormatError(error)
+      ) {
+        const fallbackBody = {
+          model: config.model,
+          messages: [
+            { role: "system", content: SYSTEM_PROMPT },
+            { role: "user", content: userMessage },
+          ],
+          temperature: config.temperature,
+          stream: false,
+        };
+        const retryResponse = await this.request(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(fallbackBody),
+        });
+        const retryContent = retryResponse.choices?.[0]?.message?.content || "";
+        return this.parseResponse(retryContent);
+      }
+      throw error;
+    }
   }
 }

@@ -149,6 +149,8 @@ function close(id: string) {
       switchToTab(tabs.value[nextIndex].id);
     } else {
       activeTabId.value = null;
+      // 所有 tab 关闭后，清空大纲内容
+      emitter.emit("outline:Update", []);
     }
   }
 }
@@ -300,9 +302,6 @@ async function saveTab(tab: Tab): Promise<boolean> {
       }
 
       emitter.emit("file:Change");
-      nextTick(() => {
-        emitter.emit("editor:reload");
-      });
       return true;
     }
   } catch (error) {

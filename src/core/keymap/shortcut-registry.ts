@@ -178,6 +178,26 @@ export const DEFAULT_SHORTCUTS: ShortcutDefinition[] = [
   },
   { id: "undo", label: "撤销", category: "editor", key: "Mod-z", defaultKey: "Mod-z" },
   { id: "redo", label: "重做", category: "editor", key: "Mod-y", defaultKey: "Mod-y" },
+
+  // 应用操作
+  {
+    id: "switchNextTab",
+    label: "切换到下一个标签页",
+    category: "app",
+    key: "Ctrl-Tab",
+    defaultKey: "Ctrl-Tab",
+    exactModifier: true,
+  },
+  {
+    id: "switchTabByNumber",
+    label: "切换到指定标签页（数字键）",
+    category: "app",
+    key: "Alt",
+    defaultKey: "Alt",
+    modifierOnly: true,
+    exactModifier: true,
+    withNumberKeys: true,
+  },
 ];
 
 /** 分类中文名映射 */
@@ -186,4 +206,5 @@ export const CATEGORY_LABELS: Record<string, string> = {
   block: "块级格式",
   insert: "插入",
   editor: "编辑器操作",
+  app: "应用操作",
 };

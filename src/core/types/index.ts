@@ -94,7 +94,8 @@ export type SyntaxType =
   | "math_inline"
   | "highlight"
   | "footnote_ref"
-  | "hard_break";
+  | "hard_break"
+  | "html_entity";
 
 /** 语法标记信息 */
 export interface SyntaxMarker {

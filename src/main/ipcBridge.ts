@@ -189,14 +189,18 @@ function buildImagePreviewHtml(payload: {
       overflow: hidden;
       -webkit-app-region: no-drag;
     }
+    .viewer.zoomed { cursor: grab; }
+    .viewer.dragging { cursor: grabbing; }
     img {
       max-width: 100vw;
       max-height: 100vh;
       object-fit: contain;
       -webkit-user-drag: none;
+      pointer-events: none;
       transform-origin: center center;
-      transition: transform 80ms linear;
+      transition: transform 160ms ease;
     }
+    .viewer.dragging img { transition: none; }
     button {
       position: fixed;
       top: 8px;
@@ -278,13 +282,42 @@ function buildImagePreviewHtml(payload: {
     const items = ${safeItems};
     let currentIndex = ${safeInitialIndex};
     const image = document.getElementById("preview-image");
+    const viewer = document.querySelector(".viewer");
     const counter = document.getElementById("counter");
     let scale = 1;
+    let offsetX = 0, offsetY = 0;
+    let isDragging = false;
+    let dragStartX, dragStartY, dragStartOffsetX, dragStartOffsetY;
     const minScale = 0.2;
     const maxScale = 8;
 
-    function applyScale() {
-      image.style.transform = "scale(" + scale + ")";
+    function clamp(val, min, max) {
+      return Math.min(max, Math.max(min, val));
+    }
+
+    function canDragImage() {
+      return scale > 1;
+    }
+
+    function getDragBounds() {
+      const vw = viewer.clientWidth;
+      const vh = viewer.clientHeight;
+      const iw = image.naturalWidth * scale;
+      const ih = image.naturalHeight * scale;
+      const maxOX = Math.max(0, (iw - vw) / 2);
+      const maxOY = Math.max(0, (ih - vh) / 2);
+      return { minX: -maxOX, maxX: maxOX, minY: -maxOY, maxY: maxOY };
+    }
+
+    function clampOffsetToBounds() {
+      const bounds = getDragBounds();
+      offsetX = clamp(offsetX, bounds.minX, bounds.maxX);
+      offsetY = clamp(offsetY, bounds.minY, bounds.maxY);
+    }
+
+    function applyTransform() {
+      image.style.transform = "scale(" + scale + ") translate(" + offsetX + "px, " + offsetY + "px)";
+      viewer.classList.toggle("zoomed", canDragImage());
     }
 
     function showImage(index) {
@@ -295,7 +328,9 @@ function buildImagePreviewHtml(payload: {
       image.alt = item.alt || "";
       document.title = item.alt || "";
       scale = 1;
-      applyScale();
+      offsetX = 0;
+      offsetY = 0;
+      applyTransform();
       if (counter) counter.textContent = (currentIndex + 1) + " / " + items.length;
     }
 
@@ -308,8 +343,33 @@ function buildImagePreviewHtml(payload: {
       event.preventDefault();
       const delta = event.deltaY < 0 ? 1.12 : 1 / 1.12;
       scale = Math.min(maxScale, Math.max(minScale, scale * delta));
-      applyScale();
+      if (canDragImage()) clampOffsetToBounds();
+      applyTransform();
     }, { passive: false });
+
+    viewer.addEventListener("mousedown", (event) => {
+      if (!canDragImage()) return;
+      isDragging = true;
+      dragStartX = event.clientX;
+      dragStartY = event.clientY;
+      dragStartOffsetX = offsetX;
+      dragStartOffsetY = offsetY;
+      viewer.classList.add("dragging");
+    });
+
+    window.addEventListener("mousemove", (event) => {
+      if (!isDragging) return;
+      offsetX = dragStartOffsetX + (event.clientX - dragStartX);
+      offsetY = dragStartOffsetY + (event.clientY - dragStartY);
+      clampOffsetToBounds();
+      applyTransform();
+    });
+
+    window.addEventListener("mouseup", () => {
+      if (!isDragging) return;
+      isDragging = false;
+      viewer.classList.remove("dragging");
+    });
 
     window.addEventListener("keydown", (event) => {
       if (event.key === "Escape") window.close();
@@ -317,7 +377,9 @@ function buildImagePreviewHtml(payload: {
       if (event.key === "ArrowRight") showRelative(1);
       if (event.key === "0") {
         scale = 1;
-        applyScale();
+        offsetX = 0;
+        offsetY = 0;
+        applyTransform();
       }
     });
 

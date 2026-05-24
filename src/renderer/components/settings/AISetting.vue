@@ -576,4 +576,17 @@ function resetAnalysisPrompt() {
     flex-direction: column;
   }
 }
+
+:deep(.selector-item) {
+  color: var(--text-color-1);
+}
+
+:deep(.selector-item .label) {
+  color: var(--text-color-1);
+}
+
+:deep(input::placeholder) {
+  color: var(--text-color-2);
+  opacity: 1;
+}
 </style>

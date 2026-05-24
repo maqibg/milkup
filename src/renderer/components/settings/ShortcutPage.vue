@@ -3,7 +3,8 @@ import { ref, computed } from "vue";
 import {
   useShortcutConfig,
   formatKeyForDisplay,
-  keyEventToProseMirrorKey,
+  formatShortcutForDisplay,
+  keyEventToShortcutKey,
 } from "@/renderer/hooks/useShortcutConfig";
 import AppIcon from "@/renderer/components/ui/AppIcon.vue";
 import type { ShortcutActionId, ShortcutCategory } from "@/core";
@@ -92,7 +93,7 @@ function toggleCategory(cat: ShortcutCategory) {
                 keySearchDisplay = '';
                 return;
               }
-              const k = keyEventToProseMirrorKey(e);
+              const k = keyEventToShortcutKey(e);
               if (k) {
                 keySearch = k;
                 keySearchDisplay = formatKeyForDisplay(k);
@@ -164,7 +165,7 @@ function toggleCategory(cat: ShortcutCategory) {
                         recordingKey = '';
                         return;
                       }
-                      const k = keyEventToProseMirrorKey(e);
+                      const k = keyEventToShortcutKey(e);
                       if (k) {
                         updateShortcut(s.id, k);
                         recordingId = null;
@@ -177,7 +178,7 @@ function toggleCategory(cat: ShortcutCategory) {
                     recordingKey = '';
                   "
                 >
-                  {{ recordingId === s.id ? "请按下新快捷键..." : formatKeyForDisplay(s.key) }}
+                  {{ recordingId === s.id ? "请按下新快捷键..." : formatShortcutForDisplay(s) }}
                 </div>
                 <div class="shortcut-actions">
                   <button

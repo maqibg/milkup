@@ -67,6 +67,7 @@
     "docx": "^9.5.1",
     "electron-updater": "^6.7.3",
     "font-list": "^1.5.1",
+    "he": "^1.2.0",
     "katex": "^0.16.28",
     "lucide-vue-next": "^1.0.0",
     "marked": "^18.0.0",
@@ -94,6 +95,7 @@
     "vue-draggable-plus": "^0.6.0"
   },
   "devDependencies": {
+    "@types/he": "^1.2.3",
     "@types/katex": "^0.16.8",
     "@types/node": "^24.3.0",
     "@vitejs/plugin-vue": "^6.0.1",
