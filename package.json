@@ -1,6 +1,6 @@
 {
   "name": "milkup",
-  "version": "1.0.23",
+  "version": "1.0.24",
   "description": "A Markdown editor built with Milkup core and Vue.js",
   "keywords": [
     "Markdown",
