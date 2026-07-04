@@ -4,7 +4,7 @@ import { useConfig } from "./useConfig";
 import useTab from "./useTab";
 import { shouldAutoLoadWorkspace } from "@/renderer/utils/workspacePath";
 
-const { tabs, currentTab } = useTab();
+const { tabs } = useTab();
 const { config, setConf } = useConfig();
 
 let isLoadWorkSpace = false; // 是否已经加载文件目录 标识
@@ -20,7 +20,6 @@ interface WorkSpace {
 
 const workSpace = ref<WorkSpace[] | null>(null);
 const watchedDirPath = ref<string | null>(null);
-let hasShownRemoteWorkspaceSkipToast = false;
 
 // 搜索
 const searchQuery = ref("");
@@ -95,13 +94,7 @@ async function getWorkSpace() {
   // 获取文件所在的目录路径
   const directoryPath = realFile.filePath.replace(/[^/\\]+$/, "");
 
-  if (!shouldAutoLoadWorkspace(directoryPath)) {
-    if (!hasShownRemoteWorkspaceSkipToast) {
-      hasShownRemoteWorkspaceSkipToast = true;
-      toast.show("检测到 WSL / 远程路径，已跳过自动加载工作区，可手动打开文件夹", "info");
-    }
-    return;
-  }
+  if (!shouldAutoLoadWorkspace(directoryPath)) return;
 
   try {
     isLoading.value = true;
@@ -109,7 +102,6 @@ async function getWorkSpace() {
     const result = await window.electronAPI.getDirectoryFiles(directoryPath);
 
     if (!result) return;
-    if (!result.length) return;
 
     // 已加载
     isLoadWorkSpace = true;
@@ -179,8 +171,11 @@ function stopWatching() {
 }
 
 // 刷新文件列表
+let isRefreshing = false;
 async function refreshWorkSpace() {
   if (!watchedDirPath.value) return;
+  if (isRefreshing) return;
+  isRefreshing = true;
   try {
     const result = await window.electronAPI.getDirectoryFiles(watchedDirPath.value);
     if (result) {
@@ -188,6 +183,8 @@ async function refreshWorkSpace() {
     }
   } catch {
     // 静默失败
+  } finally {
+    isRefreshing = false;
   }
 }
 

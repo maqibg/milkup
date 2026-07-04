@@ -19,6 +19,7 @@
     "build:main": "esbuild src/main/index.ts --bundle --platform=node --external:electron --outfile=dist-electron/main/index.js",
     "build:preload": "esbuild src/preload.ts --bundle --platform=neutral --outfile=dist-electron/preload.js --external:electron --format=cjs",
     "build": "pnpm run build:preload && pnpm run build:main && vite build",
+    "test": "node --experimental-strip-types --test test/*.test.mjs",
     "build:auto-i18n": "cross-env AUTO_I18N=1 pnpm run build",
     "dev": "pnpm run build:preload && pnpm run build:main && vite",
     "dev:auto-i18n": "cross-env AUTO_I18N=1 pnpm run dev",

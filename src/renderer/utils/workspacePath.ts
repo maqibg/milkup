@@ -11,11 +11,11 @@ export function isAbsoluteLocalPath(pathValue: string): boolean {
 }
 
 export function isRemoteWorkspacePath(pathValue: string): boolean {
-  if (!pathValue || !isWindows) return false;
+  if (!pathValue) return false;
 
   return /^\\\\wsl(?:\$|\.localhost)\\/i.test(pathValue) || /^\\\\(?![?.]\\)/.test(pathValue);
 }
 
 export function shouldAutoLoadWorkspace(pathValue: string): boolean {
-  return Boolean(pathValue) && !isRemoteWorkspacePath(pathValue);
+  return Boolean(pathValue);
 }
