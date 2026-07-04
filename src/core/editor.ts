@@ -1027,7 +1027,7 @@ export class MilkupEditor implements IMilkupEditor {
         // 遍历文档找到第 i 个图片节点
         let imageIndex = 0;
         let result: { node: Node; src: string } | null = null;
-        this.view.state.doc.descendants((node, pos) => {
+        this.view.state.doc.descendants((node) => {
           if (result) return false;
           if (node.type.name === "image") {
             if (imageIndex === i) {

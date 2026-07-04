@@ -21,6 +21,7 @@ const i18nPlugin = vitePluginsAutoI18n({
   targetLangList: ["ja", "ko", "ru", "en", "fr"],
   originLang: "zh-cn",
   translator: new EmptyTranslator(),
+  rewriteConfig: false,
 });
 
 const electronPlugin = electron({

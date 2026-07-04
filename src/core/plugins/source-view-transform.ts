@@ -678,10 +678,6 @@ function transformParagraphsToBlockquote(
   return nodes.length > 0 ? nodes : null;
 }
 
-function createBlockquoteSeparatorParagraph(schema: Schema): ProseMirrorNode {
-  return schema.nodes.paragraph.create({ blockquoteSeparator: true });
-}
-
 /**
  * 递归处理节点，将块级元素转换为段落（用于进入源码模式）
  */

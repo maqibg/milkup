@@ -2674,10 +2674,10 @@
   "jkvovdg": {
     "zh-cn": "服务提供商 (Provider)",
     "ja": "プロバイダー (Provider)",
-    "ko": "",
-    "ru": "",
-    "en": "",
-    "fr": ""
+    "ko": "서비스 제공자 (Provider)",
+    "ru": "Поставщик услуг (Provider)",
+    "en": "Service provider (Provider)",
+    "fr": "Fournisseur de services (Provider)"
   },
   "vwo89ea": {
     "zh-cn": "模型 (Model)",
@@ -2714,10 +2714,10 @@
   "o9xxdrj": {
     "zh-cn": "随机性 (Temperature): ",
     "ja": "ランダム性 (Temperature): ",
-    "ko": "",
-    "ru": "",
-    "en": "",
-    "fr": ""
+    "ko": "무작위성 (Temperature): ",
+    "ru": "Случайность (Temperature): ",
+    "en": "Randomness (Temperature): ",
+    "fr": "Aléatoire (Temperature): "
   },
   "nxfz0r6": {
     "zh-cn": "测试中...",
@@ -2833,11 +2833,11 @@
   },
   "68tpr19": {
     "zh-cn": " 全部保存并重启 ",
-    "ja": "すべて保存して再起動?",
-    "ko": "",
-    "ru": "",
-    "en": "",
-    "fr": ""
+    "ja": " すべて保存して再起動 ",
+    "ko": " 모두 저장하고 다시 시작 ",
+    "ru": " Сохранить всё и перезапустить ",
+    "en": " Save all and restart ",
+    "fr": " Tout enregistrer et redémarrer "
   },
   "5ievmo6": {
     "zh-cn": "稍后手动重启",
@@ -2874,10 +2874,10 @@
   "dksrvi15": {
     "zh-cn": "<span class=\"milkup-image-error\">图片加载失败: ",
     "ja": "<span class=\"milkup-image-error\">画像の読み込みに失敗しました: ",
-    "ko": "",
-    "ru": "",
-    "en": "",
-    "fr": ""
+    "ko": "<span class=\"milkup-image-error\">이미지 로드 실패: ",
+    "ru": "<span class=\"milkup-image-error\">Не удалось загрузить изображение: ",
+    "en": "<span class=\"milkup-image-error\">Image failed to load: ",
+    "fr": "<span class=\"milkup-image-error\">Échec du chargement de l'image : "
   },
   "m2x6wu7": {
     "zh-cn": "请输入图片地址",
@@ -3130,10 +3130,10 @@
   "kkvm9k9": {
     "zh-cn": " 重置所有快捷键 ",
     "ja": " すべてのショートカットキーをリセット ",
-    "ko": "",
-    "ru": "",
-    "en": "",
-    "fr": ""
+    "ko": " 모든 단축키 재설정 ",
+    "ru": " Сбросить все сочетания клавиш ",
+    "en": " Reset all shortcuts ",
+    "fr": " Réinitialiser tous les raccourcis "
   },
   "dcc4lk7": {
     "zh-cn": "重置所有快捷键",
@@ -3657,19 +3657,19 @@
   },
   "xnvb0b27": {
     "zh-cn": " 相对路径基于当前 Markdown 文件目录，例如 `/assets` 会保存到当前文件目录下的 `assets` 文件夹；绝对路径会直接保存到指定目录。 ",
-    "ja": "",
-    "ko": "",
-    "ru": "",
-    "en": "",
-    "fr": ""
+    "ja": " 相対パスは現在の Markdown ファイルのディレクトリを基準にします。例えば `/assets` は現在のファイルのディレクトリ内の `assets` フォルダーに保存されます。絶対パスは指定したディレクトリに直接保存されます。 ",
+    "ko": " 상대 경로는 현재 Markdown 파일 디렉터리를 기준으로 합니다. 예: `/assets`는 현재 파일 디렉터리 아래의 `assets` 폴더에 저장됩니다. 절대 경로는 지정한 디렉터리에 직접 저장됩니다. ",
+    "ru": " Относительный путь считается от папки текущего Markdown-файла. Например, `/assets` будет сохранён в папку `assets` рядом с текущим файлом; абсолютный путь сохраняется прямо в указанную папку. ",
+    "en": " Relative paths are based on the current Markdown file directory. For example, `/assets` is saved to the `assets` folder under the current file directory; absolute paths are saved directly to the specified directory. ",
+    "fr": " Les chemins relatifs sont basés sur le dossier du fichier Markdown actuel. Par exemple, `/assets` sera enregistré dans le dossier `assets` du dossier du fichier actuel ; les chemins absolus sont enregistrés directement dans le dossier indiqué. "
   },
   "bkw8ix4": {
     "zh-cn": "复制本行",
-    "ja": "",
-    "ko": "",
-    "ru": "",
-    "en": "",
-    "fr": ""
+    "ja": "この行をコピー",
+    "ko": "이 줄 복사",
+    "ru": "Копировать эту строку",
+    "en": "Copy this line",
+    "fr": "Copier cette ligne"
   },
   "rdvpxj6": {
     "zh-cn": "删除此代码块",
@@ -3689,11 +3689,11 @@
   },
   "1li91h6": {
     "zh-cn": " 无匹配项 ",
-    "ja": "",
-    "ko": "",
-    "ru": "",
-    "en": "",
-    "fr": ""
+    "ja": " 一致する項目はありません ",
+    "ko": " 일치하는 항목 없음 ",
+    "ru": " Нет совпадений ",
+    "en": " No matches ",
+    "fr": " Aucun résultat "
   },
   "d5bwf64": {
     "zh-cn": "搜索字体",
@@ -3961,27 +3961,27 @@
   },
   "ebjexn8": {
     "zh-cn": " 关闭右侧标签 ",
-    "ja": "",
-    "ko": "",
-    "ru": "",
-    "en": "",
-    "fr": ""
+    "ja": " 右側のタブを閉じる ",
+    "ko": " 오른쪽 탭 닫기 ",
+    "ru": " Закрыть вкладки справа ",
+    "en": " Close tabs to the right ",
+    "fr": " Fermer les onglets à droite "
   },
   "1pyyb17": {
     "zh-cn": " 关闭已保存 ",
-    "ja": "",
-    "ko": "",
-    "ru": "",
-    "en": "",
-    "fr": ""
+    "ja": " 保存済みを閉じる ",
+    "ko": " 저장된 항목 닫기 ",
+    "ru": " Закрыть сохранённые ",
+    "en": " Close saved ",
+    "fr": " Fermer les éléments enregistrés "
   },
   "2ac37e6": {
     "zh-cn": " 关闭其他 ",
-    "ja": "",
-    "ko": "",
-    "ru": "",
-    "en": "",
-    "fr": ""
+    "ja": " 他を閉じる ",
+    "ko": " 다른 항목 닫기 ",
+    "ru": " Закрыть остальные ",
+    "en": " Close others ",
+    "fr": " Fermer les autres "
   },
   "3zb7n59": {
     "zh-cn": "正在切换主题...",

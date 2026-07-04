@@ -9,7 +9,6 @@
 import { Decoration, DecorationSet, EditorView } from "prosemirror-view";
 import { EditorState, Plugin, PluginKey, Selection, Transaction } from "prosemirror-state";
 import { Node } from "prosemirror-model";
-import type { SyntaxType } from "../types";
 import { renderInlineMath } from "../nodeviews/math-block";
 import { decodeHtmlEntity, HTML_ENTITY_SYNTAX_TYPE } from "../utils/html-entities";
 import {
